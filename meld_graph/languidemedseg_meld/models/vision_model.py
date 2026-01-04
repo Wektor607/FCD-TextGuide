@@ -51,7 +51,6 @@ class ResidualBlock(nn.Module):
         h = self.norm2(h, batch)  # <- necessary second normalization
         return h
 
-
 class VisionModel(nn.Module):
     def __init__(
         self,
@@ -69,7 +68,6 @@ class VisionModel(nn.Module):
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
         elif isinstance(device, int):
-            # 0, 1, ... → GPU index, но если CUDA нет — fallback
             if torch.cuda.is_available():
                 device = f"cuda:{device}"
             else:
@@ -83,7 +81,6 @@ class VisionModel(nn.Module):
                 device = "cpu"
 
         self.device = device if isinstance(device, torch.device) else torch.device(device)
-
 
         self.icos = IcoSpheres(icosphere_path=str(ico_path))
         self._nverts_to_level = {
@@ -99,53 +96,20 @@ class VisionModel(nn.Module):
             ]
         )
 
-        # Precompute edge_index for stage1..stage7
-        self.edge_index_per_stage = self._collect_edge_indices()
-
-    def _collect_edge_indices(self) -> Dict[str, Tuple[int, torch.Tensor]]:
-        """
-        Build edge_index for each stage directly from icospheres.
-        Assumes:
-        stage1 -> ico1
-        stage2 -> ico2
-        ...
-        stage7 -> ico7
-        """
-
-        edge_index_per_stage = {}
-        H = 2  # number of hemispheres
-        for level in range(1, 8):  # ico1 ... ico7
-            stage = f"stage{level}"
-
-            ico = self.icos.icospheres[level]
-            N_i = ico["coords"].shape[0]     # vertices per hemisphere
-            V_total = H * N_i
-
-            # base edges for one hemisphere: [2, E]
-            edge_lh = ico["t_edges"].clone()
-
-            # duplicate for RH with index shift
-            edge_rh = edge_lh.clone()
-            edge_rh[0] += N_i
-            edge_rh[1] += N_i
-
-            edge_index = torch.cat([edge_lh, edge_rh], dim=1)
-
-            # keep on CPU
-            edge_index_per_stage[stage] = (V_total, edge_index)
-
-        return edge_index_per_stage
-
     def forward(self, subject_ids: List[str]) -> Dict[str, List[Batch]]:
-        # Only use stage1..stage7 keys
-        stage_keys = sorted(
-            self.edge_index_per_stage.keys(), key=lambda k: int(k.replace("stage", ""))
-        )
-        num_used_stages = len(stage_keys)  # expected = 7
+        ref_subject = subject_ids[0]
+        ref_npz = Path(FEATURE_PATH) / ref_subject / "features" / "feature_maps.npz"
 
-        # Prepare container: one list of Data per used stage
-        graph_list_per_stage: List[List[Data]] = [[] for _ in range(num_used_stages)]
+        with np.load(ref_npz, allow_pickle=False) as ref_features:
+            stage_keys = sorted(
+                ref_features.files,
+                key=lambda k: int(k.replace("stage", ""))
+            )
 
+        graph_list_per_stage: List[List[Data]] = [
+            [] for _ in stage_keys
+        ]
+                
         for subject_id in subject_ids:
             # Step 1: ensure MELD features exist for this subject
             npz_path = Path(FEATURE_PATH) / subject_id / "features" / "feature_maps.npz"
@@ -157,53 +121,33 @@ class VisionModel(nn.Module):
 
             # Step 2: load subject’s NPZ
             with np.load(npz_path, allow_pickle=False) as features:
-                sorted_keys = sorted(
-                    features.files, key=lambda k: int(k.replace("stage", ""))
-                )
-                # Only keep stage1..stage7
-                sorted_keys = [
-                    st for st in sorted_keys if st in self.edge_index_per_stage
-                ]
-
                 # Step 3: build graphs for each used stage
-                for i, stage in enumerate(sorted_keys):
-                    feat_torch = torch.from_numpy(features[stage])
-                    # Move to device if possible; fallback to CPU on any error to avoid
-                    # triggering CUDA initialization when drivers are missing.
-                    try:
-                        if getattr(self.device, 'type', None) == 'cuda' and torch.cuda.is_available():
-                            _ = torch.cuda.current_device()
-                            feat_torch = feat_torch.to(self.device)
-                        else:
-                            # keep on CPU
-                            pass
-                    except Exception:
-                        # couldn't move to CUDA — keep tensor on CPU
-                        pass
-
+                for i, stage in enumerate(stage_keys):
+                    feat_torch = torch.from_numpy(features[stage])                    
                     feat = feat_torch[self.fold_number]  # shape = (H, N_i, C_i)
+                    feat = feat.to(self.device)
                     H, N, C = feat.shape
                     feat_tensor = feat.view(H * N, C)
 
-                    # Retrieve precomputed edge_index
-                    _, edge_index = self.edge_index_per_stage[stage]
+                    if N not in self._nverts_to_level:
+                        raise ValueError(f"No icosphere level for N={N}")
+
+                    level = self._nverts_to_level[N]
+                    edge_lh = self.icos.icospheres[level]["t_edges"]
+
+                    edge_rh = edge_lh.clone()
+                    edge_rh[0] += N
+                    edge_rh[1] += N
+                    edge_index = torch.cat([edge_lh, edge_rh], dim=1)
                     
                     data = Data(x=feat_tensor, edge_index=edge_index, num_nodes=H * N)
-
                     graph_list_per_stage[i].append(data)
 
         # Batch each stage’s list of Data
         batched_per_stage: List[Batch] = []
         for i, data_list in enumerate(graph_list_per_stage):
             batch = Batch.from_data_list(data_list)
-            # Move batch to device only if the device is CUDA and CUDA can be initialized.
-            if getattr(self.device, 'type', None) == 'cuda' and torch.cuda.is_available():
-                try:
-                    _ = torch.cuda.current_device()
-                    batch = batch.to(self.device)
-                except Exception:
-                    # CUDA not available at runtime; keep batch on CPU
-                    pass
+            batch = batch.to(self.device)
 
             V_total, _ = batch.x.size()
             N = V_total // (2 * batch.num_graphs)  # H = 2

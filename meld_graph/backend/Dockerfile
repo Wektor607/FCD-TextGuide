@@ -86,7 +86,6 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 # Copy the micromamba bin and env
 COPY --from=micromamba /bin/micromamba /bin/micromamba
 
-# COPY --from=micromamba /opt/conda/envs/meld_graph /opt/conda/envs/meld_graph
 COPY --from=micromamba /opt/conda/envs/FCD-meld /opt/conda/envs/FCD-meld
 
 
@@ -101,13 +100,9 @@ COPY . .
 ENV MAMBA_ROOT_PREFIX="/opt/conda"
 ENV MAMBA_EXE="/bin/micromamba"
 
-# RUN micromamba run -n meld_graph /bin/bash -c "pip install -e ." \
-#     && micromamba shell init -s bash \
-#     && echo "micromamba activate meld_graph" >> $HOME/.bashrc
-
-# RUN micromamba run -n FCD-meld /bin/bash -c "pip install -e ." \
-#     && micromamba shell init -s bash \
-#     && echo "micromamba activate FCD-meld" >> $HOME/.bashrc
+RUN micromamba run -n FCD-meld /bin/bash -c "pip install -e ." \
+    && micromamba shell init -s bash \
+    && echo "micromamba activate FCD-meld" >> $HOME/.bashrc
 
 ENV PATH="/opt/conda/envs/FCD-meld/bin:$PATH"
 ENV PYTHONPATH=/app

@@ -57,7 +57,7 @@ def get_cfg(argv=[]):
     return cfg
 
 
-def create_inference_loader(subject_data: dict, description: str, tokenizer, cohort: MeldCohort) -> DataLoader:
+def create_inference_loader(subject_data: dict, description: str, tokenizer) -> DataLoader:
     """
     Prepare the Dataset and DataLoader for inference.
 
@@ -67,7 +67,6 @@ def create_inference_loader(subject_data: dict, description: str, tokenizer, coh
         data=subject_data,
         description=description,
         tokenizer=tokenizer,
-        cohort=cohort,
         max_length=256,
     )
 
@@ -83,22 +82,13 @@ def create_inference_loader(subject_data: dict, description: str, tokenizer, coh
     return dl_inference
 
 
-def load_ensemble_models(ckpt_prefix: str, args, eva, exp_flags, device: torch.device) -> List[torch.nn.Module]:
+def load_ensemble_models(ckpt_prefix: str, args, eva, att_mechanism: bool, text_emb: bool, device: torch.device) -> List[torch.nn.Module]:
     save_dir = Path("data") / "saved_models"
-    i = 4
-    ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt"]
-    # ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt" for i in range(0, 5)]
+    # i = 4
+    # ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt"]
+    ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt" for i in range(0, 5)]
     # ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt" for i in range(0, 3)]
-    att_mechanism = False
-    text_emb = False
-    for exp, flags in exp_flags.items():
-        if exp in ckpt_prefix.lower():
-            att_mechanism = flags.get("self_att_mechanism", False)
-            text_emb = flags.get("text_emb", False)
-            sys.stderr.write(f"[INFO] Experiment '{exp}' flags: self_att_mechanism={att_mechanism}, text_emb={text_emb}")
-            break
     
-    tokenizer = AutoTokenizer.from_pretrained(args.bert_type, trust_remote_code=True) if text_emb else None
     print(
         f"[INFO] Using ensemble of {len(ckpt_paths)} models:",
         ckpt_paths,
@@ -121,7 +111,7 @@ def load_ensemble_models(ckpt_prefix: str, args, eva, exp_flags, device: torch.d
         model.to(device)
         models.append(model)
 
-    return models, tokenizer
+    return models
 
 def run_ensemble_inference(dl_inference: DataLoader, models: List[torch.nn.Module], device: torch.device, cohort: MeldCohort = None):
     cortex_mask = torch.from_numpy(cohort.cortex_mask).to(device)
@@ -260,17 +250,18 @@ def inference(subject_data, description, model_type):
 
     att_mechanism = False
     text_emb = False
+
     for exp, flags in exp_flags.items():
-        if exp in (model_type or ""):
+        if exp in (model_type or "").lower():
             att_mechanism = flags.get("self_att_mechanism", False)
             text_emb = flags.get("text_emb", False)
             sys.stderr.write(f"Experiment '{exp}' flags: self_att_mechanism={att_mechanism}, text_emb={text_emb}")
             break
-
+    
     tokenizer = AutoTokenizer.from_pretrained(args.bert_type, trust_remote_code=True) if text_emb else None
 
     # create dataset and dataloader
-    dl_inference = create_inference_loader(subject_data, description, tokenizer, cohort)
+    dl_inference = create_inference_loader(subject_data, description, tokenizer)
 
     # MELD has a simpler postprocessing flow
     if model_type == "MELD":
@@ -280,7 +271,7 @@ def inference(subject_data, description, model_type):
     sys.stderr.write(f"[INFO] Running ensemble inference for model type '{model_type}'\n")
     # ensemble inference for other model types
     device = get_device()
-    models, tokenizer = load_ensemble_models(model_type, args, eva, exp_flags, device)
+    models = load_ensemble_models(model_type, args, eva, att_mechanism, text_emb, device)
     all_subject_ids, all_probs = run_ensemble_inference(dl_inference, models, device, cohort)
     final_predictions, epi_dict = postprocess_and_save(all_subject_ids, all_probs, eva, cohort, model_type)
 

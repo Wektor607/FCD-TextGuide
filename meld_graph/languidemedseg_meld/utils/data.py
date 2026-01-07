@@ -259,18 +259,14 @@ class SingleEpilepSample(Dataset):
         data: dict,
         description: str,
         tokenizer,
-        cohort,
         max_length: int = 256,
-        text_emb: bool = True,
     ):
         super().__init__()
         self.keys = list(data.keys())
         self.tokenizer = tokenizer
-        self.cohort = cohort
         self.max_length = max_length
-        self.text_emb = text_emb
 
-        if not self.text_emb:
+        if not description:
             description = "full brain"
 
         if description and tokenizer is not None:

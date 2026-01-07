@@ -100,9 +100,9 @@ COPY . .
 ENV MAMBA_ROOT_PREFIX="/opt/conda"
 ENV MAMBA_EXE="/bin/micromamba"
 
-RUN micromamba run -n FCD-meld /bin/bash -c "pip install -e ." \
-    && micromamba shell init -s bash \
-    && echo "micromamba activate FCD-meld" >> $HOME/.bashrc
+# RUN micromamba run -n FCD-meld /bin/bash -c "pip install -e ." \
+#     && micromamba shell init -s bash \
+#     && echo "micromamba activate FCD-meld" >> $HOME/.bashrc
 
 ENV PATH="/opt/conda/envs/FCD-meld/bin:$PATH"
 ENV PYTHONPATH=/app

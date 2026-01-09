@@ -124,7 +124,10 @@ def create_surface_plots(surf,prediction,c, base_size=20):
               surf['faces'],prediction,
               rotate=[90],
               mask=prediction==0,pvals=np.ones_like(c.cortex_mask),
-              colorbar=False,vmin=1,vmax=len(colors) ,cmap=cmap,
+              colorbar=False,
+            #   vmin=1,vmax=len(colors),
+              vmin=0,vmax=1,
+              cmap='Reds',#cmap,
               base_size=base_size,
               filename=tmp_file)
     im = Image.open(tmp_file)
@@ -135,7 +138,10 @@ def create_surface_plots(surf,prediction,c, base_size=20):
             surf['faces'],prediction,
               rotate=[270],
               mask=prediction==0,pvals=np.ones_like(c.cortex_mask),
-              colorbar=False,vmin=1,vmax=len(colors),cmap=cmap,
+              colorbar=False,
+              #   vmin=1,vmax=len(colors),
+              vmin=0,vmax=1,
+              cmap='Reds',#cmap,
               base_size=base_size,
               filename=tmp_file)
     im = Image.open(tmp_file)

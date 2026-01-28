@@ -132,7 +132,7 @@ def run_meld_check(dl_test, eva, cohort):
 
             nii_path = os.path.join(
                 MELD_DATA_PATH,
-                f"preprocessed/meld_files/{sid}/features",
+                f"input/preprocessed/meld_files/{sid}/features",
                 "result.npz",
             )
             with np.load(nii_path, allow_pickle=False) as npz:
@@ -146,7 +146,8 @@ def run_meld_check(dl_test, eva, cohort):
             #probs_flat = np.asarray(probs_flat, dtype=np.float32).ravel()
             
             probs = probs_flat.reshape(2, -1)
-            final_nii = convert_preds_to_nifti("meld", [sid], [probs], cohort)
+            # final_nii = convert_preds_to_nifti("meld", [sid], [probs], [gt_cortex], cohort)
+            final_nii = convert_preds_to_nifti(ckpt_path="meld", subject_ids=[sid], probs_bin=[probs], c=cohort)
 
             # cluster sizes and distances
             all_ids = np.unique(probs_flat)

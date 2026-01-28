@@ -20,7 +20,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import meld_graph.mesh_tools as mt
 from meld_graph.meld_cohort import MeldCohort
-from meld_graph.paths import (DEFAULT_HDF5_FILE_ROOT, MELD_DATA_PATH,
+from meld_graph.paths import (BASE_PATH, DEFAULT_HDF5_FILE_ROOT, MELD_DATA_PATH,
                               MELD_PARAMS_PATH, SURFACE_PARTIAL)
 from scripts.manage_results.plot_prediction_report import create_surface_plots
 from utils.config import SUBJECTS_DIR
@@ -85,37 +85,49 @@ def threshold_surface_prediction(pred, percentile=99.5):
     return pred
 
 
-def convert_preds_to_nifti(ckpt_path, subject_ids, probs_bin, c, mode="test"):
+def convert_preds_to_nifti(ckpt_path, 
+                           subject_ids, 
+                           probs_bin=None, 
+                           gt_bin=None,
+                           c=None, 
+                           mode="test"):
     subjects_fs_dir = Path(MELD_DATA_PATH) / "input"
     predictions_output_root = Path(MELD_DATA_PATH) / "output" / "predictions_reports" / ckpt_path
     os.makedirs(predictions_output_root, exist_ok=True)
 
     results = {}
 
-    for (sid, pred) in zip(subject_ids, probs_bin):
+    gt_iter = gt_bin if gt_bin is not None else [None] * len(subject_ids)
+    for (sid, pred, gt) in zip(subject_ids, probs_bin, gt_iter):
         # Convert prediction tensor → numpy
         predictions = pred.detach().cpu().numpy() if hasattr(pred, "detach") else np.asarray(pred)
+        gt_cortex = gt.detach().cpu().numpy() if (gt is not None and hasattr(gt, "detach")) else (np.asarray(gt) if gt is not None else None)
 
         classifier_dir = subjects_fs_dir / sid / "xhemi" / "classifier"
         predictions_dir = predictions_output_root / sid / "predictions"
         os.makedirs(classifier_dir, exist_ok=True)
         os.makedirs(predictions_dir, exist_ok=True)
 
-        combat_path = subjects_fs_dir / "meld_combats"     
-
         # ============================================================
         # (1) Save each hemisphere prediction as MGH → NIfTI
         # ============================================================
         for idx, hemi in enumerate(["lh", "rh"]):
 
-            overlay = np.zeros_like(c.cortex_mask, dtype=np.float32)
-            overlay[c.cortex_mask] = predictions[idx]
+            # overlay = np.zeros_like(c.cortex_mask, dtype=np.float32)
+            # print(c.cortex_mask.shape, predictions[idx].shape)
+            # sys.exit(0)
+            # overlay[c.cortex_mask] = predictions[idx]
 
-            if predictions[idx].shape[0] != np.sum(c.cortex_mask):
-                print(f"[WARN] {sid}: mismatch cortex_mask vs prediction size")
-                continue
+            pred_surface = np.zeros_like(c.cortex_mask, dtype=np.float32)
+            pred_surface[c.cortex_mask] = predictions[idx]
 
-            combat_file = get_combat_feature_path(combat_path, sid)
+            if gt_cortex is not None:
+                gt_surface = np.zeros_like(c.cortex_mask, dtype=np.uint8)
+                gt_surface[c.cortex_mask] = gt_cortex[idx]
+            else:
+                gt_surface = None
+
+            combat_file = get_combat_feature_path(BASE_PATH, sid)
 
             with h5py.File(combat_file, "r") as f:
                 key = ".combat.on_lh.thickness.sm3.mgh"
@@ -130,8 +142,11 @@ def convert_preds_to_nifti(ckpt_path, subject_ids, probs_bin, c, mode="test"):
 
             mgh_img = nib.MGHImage(base_arr[np.newaxis, :, np.newaxis], affine)
 
+            # print(overlay.shape)
+            # sys.exit(0)
             out_mgh_pred = classifier_dir / f"{hemi}.prediction.mgh"
-            save_mgh(out_mgh_pred, overlay, mgh_img)
+            # save_mgh(out_mgh_pred, overlay, mgh_img)
+            save_mgh(out_mgh_pred, pred_surface, mgh_img)
 
             convert_prediction_mgh_to_nii(
                 subjects_fs_dir,
@@ -142,12 +157,13 @@ def convert_preds_to_nifti(ckpt_path, subject_ids, probs_bin, c, mode="test"):
             )
 
             surf_vis_path = predictions_dir / f"{hemi}_surface_visualisation.png"
-            surf_pred = threshold_surface_prediction(overlay, percentile=99.5)
+            surf_pred = threshold_surface_prediction(pred_surface, percentile=99.5)
 
             volume_3d_visualisation(
                 prediction_surf=surf_pred,
                 hemi_name=hemi,
-                save_path=surf_vis_path
+                save_path=surf_vis_path,
+                gt_mask=gt_surface
             )
             print(f"✓ Saved surface visualisation: {surf_vis_path}")
 
@@ -195,7 +211,22 @@ def convert_preds_to_nifti(ckpt_path, subject_ids, probs_bin, c, mode="test"):
     # ============================================================
     return results
 
-def volume_3d_visualisation(prediction_surf, hemi_name, save_path):
+def compute_surface_boundary(mask, neighbours):
+    """
+    mask: (N,) binary GT mask
+    neighbours: (N, K) vertex neighbours
+    """
+    boundary = np.zeros_like(mask, dtype=np.uint8)
+    for v in np.where(mask > 0)[0]:
+        if np.any(mask[neighbours[v]] == 0):
+            boundary[v] = 1
+    return boundary
+
+
+def volume_3d_visualisation(prediction_surf, 
+                            hemi_name, 
+                            save_path,
+                            gt_mask=None):
     """
     Creates MELD-style lateral + medial hemisphere render and saves as PNG.
     """
@@ -210,10 +241,26 @@ def volume_3d_visualisation(prediction_surf, hemi_name, save_path):
     surf = mt.load_mesh_geometry(os.path.join(MELD_PARAMS_PATH, SURFACE_PARTIAL))
 
     # Use MELD's native renderer (from plot_prediction_report)
+    if gt_mask is not None:
+        if torch.is_tensor(gt_mask):
+            gt_mask = gt_mask.detach().cpu().numpy()
+
+        gt_mask = (gt_mask > 0).astype(np.uint8)
+
+    if gt_mask is not None:
+        neighbours = np.load(
+            os.path.join(MELD_DATA_PATH, "icospheres", "ico7.neighbours.npy"),
+            allow_pickle=True
+        )
+        gt_boundary = compute_surface_boundary(gt_mask, neighbours)
+    else:
+        gt_boundary = None
+
     im_lat, im_med = create_surface_plots(
         surf,
         prediction=prediction_surf,
-        c=c
+        c=c,
+        boundary=gt_boundary,
     )
 
     fig = plt.figure(figsize=(10, 4))

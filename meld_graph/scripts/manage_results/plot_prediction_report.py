@@ -20,6 +20,7 @@ from nilearn._utils.numpy_conversions import as_ndarray
 from nilearn._utils.param_validation import check_threshold
 from nilearn.image import new_img_like
 from PIL import Image
+from matplotlib.colors import ListedColormap
 
 import meld_graph.mesh_tools as mt
 from meld_graph.evaluation import Evaluator
@@ -116,41 +117,42 @@ def load_prediction(subject,hdf5):
             results[hemi] = f[subject][hemi]['prediction'][:]
     return results
 
-def create_surface_plots(surf,prediction,c, base_size=20):
-    """plot and reload surface images"""
-    cmap, colors =  load_cmap()
-    tmp_file = os.path.join(MELD_DATA_PATH,'tmp.png')
-    msp.plot_surf(surf['coords'],
-              surf['faces'],prediction,
-              rotate=[90],
-              mask=prediction==0,pvals=np.ones_like(c.cortex_mask),
-              colorbar=False,
-            #   vmin=1,vmax=len(colors),
-              vmin=0,vmax=1,
-              cmap='Reds',#cmap,
-              base_size=base_size,
-              filename=tmp_file)
-    im = Image.open(tmp_file)
-    im = trim(im)
-    im = im.convert("RGBA")
-    im1 = np.array(im)
-    msp.plot_surf(surf['coords'],
-            surf['faces'],prediction,
-              rotate=[270],
-              mask=prediction==0,pvals=np.ones_like(c.cortex_mask),
-              colorbar=False,
-              #   vmin=1,vmax=len(colors),
-              vmin=0,vmax=1,
-              cmap='Reds',#cmap,
-              base_size=base_size,
-              filename=tmp_file)
-    im = Image.open(tmp_file)
-    im = trim(im)
-    im = im.convert("RGBA")
-    im2 = np.array(im)
+def create_surface_plots(surf, prediction, c, base_size=20, boundary=None):
+    tmp_file = os.path.join(MELD_DATA_PATH, 'tmp.png')
+    def plot_and_load(rotation):
+        plot_kwargs = dict(
+            rotate=[rotation],
+            colorbar=False,
+            vmin=0,
+            vmax=1,
+            cmap=ListedColormap(['lightgray', 'red']),
+            base_size=base_size,
+            filename=tmp_file
+        )
+
+        if boundary is not None:
+            plot_kwargs.update(
+                mask=boundary,
+                mask_colour=np.array([0, 0, 0, 1])
+            )
+
+        msp.plot_surf(
+            surf['coords'],
+            surf['faces'],
+            prediction,
+            **plot_kwargs
+        )
+
+        im = Image.open(tmp_file)
+        im = trim(im)
+        return np.array(im.convert("RGBA"))
+
+    im1 = plot_and_load(90)
+    im2 = plot_and_load(270)
+
     plt.close('all')
     os.remove(tmp_file)
-    return im1,im2
+    return im1, im2
 
 def load_cluster(file, subject):
     df=pd.read_csv(file,index_col=False)
@@ -199,7 +201,6 @@ def save_mgh(filename, array, demo):
 def load_cmap():
     """ create the colors dictionarry for the clusters"""
     import numpy as np
-    from matplotlib.colors import ListedColormap
     colors =  [
         [255,0,0],     #red
         [255,215,0],   #gold

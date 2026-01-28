@@ -315,8 +315,15 @@ def calculate_loss(
             B, HN = labels.shape
             H = 2
             N = HN // H
-            labels_hemi = labels.reshape(B, H, N).any(dim=2).long()
+            labels_hemi = labels.reshape(B, H, N).any(dim=2).float()
             cur_labels = labels_hemi.reshape(-1)
+            
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                cur_estimates, cur_labels
+            )
+
+            losses[loss_def] = loss_dict[loss_def]["weight"] * loss
+            continue
 
         else:
             raise NotImplementedError(f"Unknown loss def {loss_def}")

@@ -312,15 +312,15 @@ def calculate_loss(
             else:
                 cur_estimates = estimates_dict[f"{prefix}log_sumexp"]
 
-            B, HN = labels.shape
-            H = 2
-            N = HN // H
-            labels_hemi = labels.reshape(B, H, N).any(dim=2).float()
-            cur_labels = labels_hemi.reshape(-1)
-            
-            loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                cur_estimates, cur_labels
-            )
+            # cur_estimates is LogSoftmax [2] per subject, concatenated → [2*B]
+            # Reshape to [B, 2] for NLLLoss (class 0 = healthy, class 1 = lesion)
+            B = labels.shape[0]
+            cur_estimates = cur_estimates.view(B, 2)
+
+            # Per-subject label: 1 if any lesion present, 0 otherwise
+            cur_labels = labels.any(dim=1).long()  # [B]
+
+            loss = torch.nn.functional.nll_loss(cur_estimates, cur_labels)
 
             losses[loss_def] = loss_dict[loss_def]["weight"] * loss
             continue

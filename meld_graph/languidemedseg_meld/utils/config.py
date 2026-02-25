@@ -177,7 +177,7 @@ def _check_and_coerce_cfg_value_type(replacement, original, key, full_key):
         )
     )
 
-def inference_config(data_dir=DATA_DIR_INFERENCE):
+def inference_config(data_dir=DATA_DIR):
     hdf5_file_root = "{site_code}_{group}_featurematrix_combat.hdf5"
     # create dataset csv
     tmp = tempfile.NamedTemporaryFile(mode="w")

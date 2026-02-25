@@ -206,7 +206,6 @@ class MeldCohort:
         
         group_for_path = "control" if "_C_" in site_code else group
         p = os.path.join(self.data_dir, hdf5_file_root.format(site_code=site_code, group=group_for_path))
-        
         # open existing file or create new one
         if os.path.isfile(p) and not write:
             f = h5py.File(p, "r")

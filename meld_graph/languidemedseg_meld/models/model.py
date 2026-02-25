@@ -48,7 +48,7 @@ class LanGuideMedSeg(nn.Module):
         self.num_stages: int = len(feature_dim)
         self.text_emb_flag = text_emb
         self.encoder = VisionModel(
-            feature_dim, 
+            feature_dim,
             device,
             gnn_min_verts=gnn_min_verts, fold_number=fold_number
         )
@@ -127,6 +127,7 @@ class LanGuideMedSeg(nn.Module):
             level += 1
 
         # ----------------------------
+
         self.pool_layers: Dict[int, HexPool] = {
             level: HexPool(icos.get_downsample(target_level=level))
             for level in range(1, self.num_levels)[::-1]

@@ -24,15 +24,15 @@ def project_path(relative_path):
 # =========================
 FILE_NAME = "MELD_BONN_dataset_augmented_final"
 MODE = input().strip()   # e.g. "hemisphere", "lobe", "hemisphere_lobe", etc.
-CONVERT_LOBE = True
+CONVERT_LOBE = False
 INVERSE = False
 
 INPUT_CSV = project_path(
-    os.path.join("data", "preprocessed", f"{FILE_NAME}.csv")
+    os.path.join("data", "input", "preprocessed", f"{FILE_NAME}.csv")
 )
 
 OUTPUT_CSV = project_path(
-    os.path.join("data", "preprocessed", "final_aug_text", f"MELD_BONN_{MODE}.csv")
+    os.path.join("data", "input", "preprocessed", "final_aug_text", f"MELD_BONN_{MODE}.csv")
 )
 
 # Mapping from fine-grained atlas regions to coarse lobes

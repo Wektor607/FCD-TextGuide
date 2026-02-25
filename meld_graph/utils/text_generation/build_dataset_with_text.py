@@ -7,13 +7,13 @@ import pandas as pd
 if __name__ == "__main__":
     # Path to your existing CSV file with results
     # CHANGE BACK TO FULL #######################################################
-    reports_csv = "/home/s17gmikh/FCD-Detection/meld_graph/data/preprocessed/meld_files/all_augmented_reports.csv"  # H101_reports.csv"
+    reports_csv = "/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/preprocessed/meld_files/all_augmented_reports.csv"  # H101_reports.csv"
     
     # Root directory where your HDF5/NIfTI files are located
-    comb_root   = "/home/s17gmikh/FCD-Detection/meld_graph/data/input/data4sharing/meld_combats"
+    comb_root   = "/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/data4sharing/meld_combats"
     
     # CHANGE BACK TO FULL #######################################################
-    out_dir     = "/home/s17gmikh/FCD-Detection/meld_graph/data/preprocessed/MELD_BONN_dataset_augmented_final.csv"  # H101_reports_full.csv"
+    out_dir     = "/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/preprocessed/MELD_BONN_dataset_augmented_final.csv"  # H101_reports_full.csv"
 
     # Read the reports CSV
     reports_df = pd.read_csv(reports_csv, dtype=str)

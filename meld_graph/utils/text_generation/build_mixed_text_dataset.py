@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 # BASE = Path("/home/s17gmikh/FCD-Detection/meld_graph/data/preprocessed")
-BASE = Path("/home/s17gmikh/FCD-Detection/meld_graph/data/preprocessed/final_aug_text")
+BASE = Path("/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/preprocessed")
 
 
 sources = [

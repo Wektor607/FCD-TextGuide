@@ -44,6 +44,9 @@ class EpilepDataset(Dataset):
         max_length: int = 256,
         text_emb: bool = False,
         text_prob_json: str = None,
+        atlas_type: str = "harvard_oxford",
+        patient_text_mask_prob: float = 0.1,
+        training_mode: bool = False,
     ) -> None:
         super().__init__()
 
@@ -52,6 +55,8 @@ class EpilepDataset(Dataset):
         self.feature_path = feature_path
         self.subject_ids = subject_ids
         self.text_emb = text_emb
+        self.patient_text_mask_prob = patient_text_mask_prob
+        self.training = training_mode
 
         csv_path = Path(csv_path)
         self.data = pd.read_csv(
@@ -96,21 +101,28 @@ class EpilepDataset(Dataset):
         self._no_text_input_ids = None
         self._no_text_attention = None
 
+        # Pre-compute per-subject patient flag for masking
+        self._is_patient: List[bool] = []
+        for sid in self.subject_ids:
+            data_path = self.data.loc[sid, "DATA_PATH"]
+            if isinstance(data_path, pd.Series):
+                data_path = data_path.iloc[0]
+            self._is_patient.append("_patient_" in str(data_path))
+
         if self.tokenizer is not None:
-            if not self.text_emb:
-                token_output = self.tokenizer.encode_plus(
-                    "full brain",
-                    padding="max_length",
-                    max_length=self.max_length,
-                    truncation=True,
-                    return_attention_mask=True,
-                    return_tensors="pt",
-                )
-                self._no_text_input_ids = token_output["input_ids"].squeeze(0)
-                self._no_text_attention = token_output["attention_mask"].squeeze(0)
+            # Always pre-tokenize "unclear" for masking / no-text fallback
+            token_output = self.tokenizer.encode_plus(
+                "unclear",
+                padding="max_length",
+                max_length=self.max_length,
+                truncation=True,
+                return_attention_mask=True,
+                return_tensors="pt",
+            )
+            self._no_text_input_ids = token_output["input_ids"].squeeze(0)
+            self._no_text_attention = token_output["attention_mask"].squeeze(0)
 
             # Detect available text columns
-            priority_single = "harvard_oxford"
             optional_multi = [
                 # "full_text",
                 "hemisphere_text",
@@ -120,13 +132,14 @@ class EpilepDataset(Dataset):
                 "no_text",
             ]
 
-            if priority_single in self.data.columns and not any(
+            # Find the first column whose name contains atlas_type
+            matched_col = next((c for c in self.data.columns if atlas_type in c), None)
+
+            if matched_col is not None and not any(
                 c in self.data.columns for c in optional_multi
             ):
                 # Only one text column scenario
-                self.text_cols = [priority_single]
-                captions = self.data[priority_single].fillna("").astype(str).tolist()
-
+                captions = self.data[matched_col].fillna("").astype(str).tolist()
                 ids_list = []
                 att_list = []
                 for cap in captions:
@@ -146,10 +159,12 @@ class EpilepDataset(Dataset):
 
             else:
                 # Multi-column case
-                self.text_cols = [c for c in optional_multi if c in self.data.columns]
-                if not self.text_cols and priority_single in self.data.columns:
-                    self.text_cols = [priority_single]
 
+                ## CHECK LATER
+                self.text_cols = [c for c in optional_multi if c in self.data.columns]
+                if not self.text_cols and atlas_type in self.data.columns:
+                    self.text_cols = [atlas_type]
+                ##############################################
                 if self.text_cols:
                     cap_matrix: List[List[str]] = []
                     for col in self.text_cols:
@@ -162,16 +177,6 @@ class EpilepDataset(Dataset):
 
                     for c_idx, col_caps in enumerate(cap_matrix):
                         for s_idx, cap in enumerate(col_caps):
-
-                            # ---- Detect if control ----
-                            # data_path = self.data["DATA_PATH"].iloc[s_idx]
-                            # is_control = "_control_" in data_path
-
-                            # # ---- Replace text for controls ----
-                            # if is_control and self.text_probs is not None:
-                            #     if cap in ("No lesion detected", "full brain", "", " "):
-                            #         cap = generate_random_text(self.text_probs)
-
                             text_to_encode = cap if isinstance(cap, str) else ""
 
                             token_output = self.tokenizer.encode_plus(
@@ -182,6 +187,7 @@ class EpilepDataset(Dataset):
                                 return_attention_mask=True,
                                 return_tensors="pt",
                             )
+
                             input_ids_tensor[c_idx, s_idx] = token_output["input_ids"].squeeze(0)
                             attn_tensor[c_idx, s_idx] = token_output["attention_mask"].squeeze(0)
 
@@ -238,6 +244,12 @@ class EpilepDataset(Dataset):
             else:
                 input_ids = torch.zeros(self.max_length, dtype=torch.long)
                 attention_mask = torch.zeros(self.max_length, dtype=torch.long)
+
+            # Stochastic text masking for patients (train only)
+            if self.training and self._is_patient[idx] and random.random() < self.patient_text_mask_prob:
+                # print(f"[{'TRAIN' if self.training else 'VAL'}] Masking text for patient {self.subject_ids[idx]}")
+                input_ids = self._no_text_input_ids
+                attention_mask = self._no_text_attention
         else:
             input_ids = torch.zeros(self.max_length, dtype=torch.long)
             attention_mask = torch.zeros(self.max_length, dtype=torch.long)

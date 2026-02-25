@@ -22,6 +22,8 @@ if command -v conda >/dev/null 2>&1; then
 #   conda activate meld_graph
 fi
 
+conda activate FCD-meld-b200-new
+
 SCRIPT_NAME="${1%.py}"
 shift
 

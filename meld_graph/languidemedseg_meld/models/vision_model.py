@@ -61,26 +61,12 @@ class VisionModel(nn.Module):
     ) -> None:
         super().__init__()
 
-        ico_path = REPO_ROOT / "data" / "icospheres"
+        ico_path = Path("data/icospheres")
 
         self.fold_number = fold_number
-
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        elif isinstance(device, int):
-            if torch.cuda.is_available():
-                device = f"cuda:{device}"
-            else:
-                device = "cpu"
-        elif isinstance(device, torch.device):
-            if device.type == "cuda" and not torch.cuda.is_available():
-                device = torch.device("cpu")
-        else:
-            device = str(device)
-            if device.startswith("cuda") and not torch.cuda.is_available():
-                device = "cpu"
-
-        self.device = device if isinstance(device, torch.device) else torch.device(device)
+        self.device = (
+            torch.device(device) if not isinstance(device, torch.device) else device
+        )
 
         self.icos = IcoSpheres(icosphere_path=str(ico_path))
         self._nverts_to_level = {

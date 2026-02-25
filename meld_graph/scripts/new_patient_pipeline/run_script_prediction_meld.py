@@ -276,7 +276,7 @@ def run_script_prediction(list_ids=None, sub_id=None, harmo_code='noHarmo', no_p
     # Skip data augmentation for test samples to ensure deterministic evaluation
     # (do not modify predictions with training-time transforms)
     # meld_list = pd.read_csv(opj(MELD_DATA_PATH, 'preprocessed', 'MELD_splits.csv'))
-    meld_list = pd.read_csv(opj(MELD_DATA_PATH, 'input', 'data4sharing', 'MELD_BONN_mixed_filtered.csv'))
+    meld_list = pd.read_csv(opj(MELD_DATA_PATH, 'input/preprocessed/MELD_splits.csv'))
     # bonn_list = pd.read_csv(opj(MELD_DATA_PATH, 'preprocessed', 'BONN_splits_full_test.csv'))
 
     meld_test_split = meld_list[meld_list['split'] == 'test']['subject_id'].tolist()
@@ -367,10 +367,10 @@ def run_script_prediction(list_ids=None, sub_id=None, harmo_code='noHarmo', no_p
             #     print(f"[SKIP TEST] {subject_id} принадлежит test split → пропуск.")
             #     continue
 
-            # preproc_root = os.path.join("./data", "preprocessed", "meld_files", subject_id)
-            # if os.path.isdir(preproc_root):
-            #     print(f"[SKIP] {subject_id} уже обработан (папка {preproc_root} существует)")
-            #     continue
+            preproc_root = os.path.join("./data", "preprocessed", "meld_files", subject_id)
+            if os.path.isdir(preproc_root):
+                print(f"[SKIP] {subject_id} уже обработан (папка {preproc_root} существует)")
+                continue
             # -----------------------------------------------
             ########################################################################################################################
             if subject_id in meld_test_split: # or subject_id in bonn_test_split:
@@ -555,7 +555,7 @@ if __name__ == '__main__':
     # Run: ./meldgraph.sh run_script_prediction_meld.py --list_ids input/data4sharing/demographics_qc_allgroups_withH27H28H101.csv --demographic_file input/data4sharing/demographics_qc_allgroups_withH27H28H101.csv --aug_mode train
     SPLIT_FILE = opj(
         MELD_DATA_PATH,
-        "input/data4sharing/MELD_BONN_mixed_filtered.csv"
+        "input/preprocessed/MELD_splits.csv"
     )
 
     results = run_script_prediction(

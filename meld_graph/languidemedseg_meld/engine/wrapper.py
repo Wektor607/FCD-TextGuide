@@ -100,6 +100,8 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             for metric in metrics:
                 setattr(self, f"{stage}_{metric}", [])
             setattr(self, f"{stage}_losses", [])
+            setattr(self, f"{stage}_cls_accs", [])
+            setattr(self, f"{stage}_dist_maes", [])
 
         self.results = []
         self.icospheres = IcoSpheres()
@@ -205,8 +207,20 @@ class LanGuideMedSegWrapper(pl.LightningModule):
         dist_maps_cortex = dist_maps[:, :, self.cortex_mask]
         dist_maps_cortex = dist_maps_cortex.view(B, -1)
 
+        # NEWWW
+        # # logp: [B, 2, N] → [B*N, 2]
+        # logp = logp.permute(0, 2, 1).reshape(-1, 2)
+
+        # # target: [B, N] → [B*N]
+        # target = target.reshape(-1)
+
+        # # distance map: [B, N] → [B*N]
+        # dist_maps_cortex = dist_maps_cortex.reshape(-1)
+
         estimates = {}
         estimates["log_softmax"] = logp
+        ############################################################
+
         estimates["hemi_log_softmax"] = outputs["hemi_log_softmax"]
         # distance head
         if "non_lesion_logits" in outputs:
@@ -216,7 +230,7 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             estimates["non_lesion_logits"] = non_lesion_logits_cortex.reshape(B, -1)
 
         losses = {}
-
+        # sys.exit(0)
         losses_main = calculate_loss(
             loss_cfg,
             estimates,
@@ -292,9 +306,50 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             sync_dist=True,
         )
 
+        # Log individual loss components
+        for loss_name, loss_val in losses.items():
+            self.log(
+                f"{stage}/{loss_name}", loss_val,
+                on_step=False, on_epoch=True, sync_dist=True,
+            )
+
+        # ---------- monitor auxiliary heads ----------
+        # Classification head: accuracy & confidence
+        with torch.no_grad():
+            hemi_logp = outputs["hemi_log_softmax"].view(B, 2)
+            cls_pred = hemi_logp.argmax(dim=1)
+            cls_target = target.any(dim=1).long()
+            cls_acc = (cls_pred == cls_target).float().mean()
+            cls_conf = hemi_logp.exp().max(dim=1).values.mean()
+
+        self.log(f"{stage}/cls_acc", cls_acc,
+                 on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log(f"{stage}/cls_confidence", cls_conf,
+                 on_step=False, on_epoch=True, sync_dist=True)
+
+        # Distance head: MAE (in normalized space, target / 300)
+        dist_mae_val = None
+        if "non_lesion_logits" in estimates:
+            with torch.no_grad():
+                dist_mae = (
+                    estimates["non_lesion_logits"] - dist_maps_cortex.float() / 300.0
+                ).abs().mean()
+                dist_mae_val = float(dist_mae.detach().cpu())
+            self.log(f"{stage}/dist_mae", dist_mae,
+                     on_step=False, on_epoch=True, sync_dist=True)
+
+        # Accumulate auxiliary head metrics for epoch-end summary
+        getattr(self, f"{stage}_cls_accs").append(float(cls_acc.detach().cpu()))
+        if dist_mae_val is not None:
+            getattr(self, f"{stage}_dist_maes").append(dist_mae_val)
+
         # Calculate metrics on cortex only
         probs = logp[:, 1, :].exp()
         pprobs = probs.view(B, H, -1).contiguous()  # [B, H, V_cortex]
+        #### Classification gating ###
+        # cls_prob = outputs["hemi_log_softmax"].view(B, 2)[:, 1].exp()  # [B]
+        # pprobs = pprobs * cls_prob[:, None, None]  # [B, H, V_cortex] * [B, 1, 1]
+        ##############################
         target = target.view(B, H, -1)
 
         # Move predicted probabilities and dist_maps to CPU once to avoid repeated device transfers
@@ -454,13 +509,22 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             stats[f"{stage}_IoU"] = np.mean(iou_scores)
             stats[f"{stage}_ppv_clusters"] = ppv_clusters
 
+        cls_accs = getattr(self, f"{stage}_cls_accs")
+        dist_maes = getattr(self, f"{stage}_dist_maes")
+        if len(cls_accs) > 0:
+            stats[f"{stage}_cls_acc"] = np.mean(cls_accs)
+        if len(dist_maes) > 0:
+            stats[f"{stage}_dist_mae"] = np.mean(dist_maes)
+
         if stage != "test":
             self.history[self.current_epoch] = stats.copy()
-        
+
         return stats
 
     def on_train_epoch_end(self) -> None:
         stats = self.shared_epoch_end("train")
+        cls_str = f", cls_acc={stats['train_cls_acc']:.4f}" if "train_cls_acc" in stats else ""
+        dist_str = f", dist_mae={stats['train_dist_mae']:.4f}" if "train_dist_mae" in stats else ""
         print(
             f"\n[TRAIN epoch {stats['epoch']}] "
             f"loss={stats['train_loss']:.4f}, "
@@ -468,6 +532,7 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             f"ppv_clusters={stats['train_ppv_clusters']:.4f}, "
             f"dice={stats['train_dice']:.4f}, "
             f"IoU={stats['train_IoU']:.4f}"
+            f"{cls_str}{dist_str}"
         )
 
         self.log_dict(
@@ -480,6 +545,8 @@ class LanGuideMedSegWrapper(pl.LightningModule):
     def on_validation_epoch_end(self) -> None:
         stats = self.shared_epoch_end(stage="val")
         nowtime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cls_str = f", cls_acc={stats['val_cls_acc']:.4f}" if "val_cls_acc" in stats else ""
+        dist_str = f", dist_mae={stats['val_dist_mae']:.4f}" if "val_dist_mae" in stats else ""
         print("\n" + "=" * 80 + f" {nowtime}")
         print(
             f"[VAL   epoch {stats['epoch']}] "
@@ -488,6 +555,7 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             f"ppv_clusters={stats['val_ppv_clusters']:.4f}, "
             f"dice={stats['val_dice']:.4f}, "
             f"IoU={stats['val_IoU']:.4f}"
+            f"{cls_str}{dist_str}"
         )
         self.log_dict(
             {k: v for k, v in stats.items() if k != "epoch"},
@@ -567,6 +635,8 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             "number_fp_clusters",
             "number_tp_clusters",
             "losses",
+            "cls_accs",
+            "dist_maes",
         ]
         for m in metrics:
             getattr(self, f"{stage}_{m}").clear()

@@ -25,7 +25,7 @@ from transformers import AutoTokenizer
 import utils.config as config
 from meld_graph.paths import MELD_DATA_PATH
 from utils.data import EpilepDataset
-from utils.utils import convert_preds_to_nifti, summarize_ci
+from utils.utils import convert_preds_to_nifti, move_to_device, summarize_ci
 
 # теперь можно вызвать
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -89,8 +89,12 @@ def make_dl_test(args, tokenizer, cohort):
     return dl_test
 
 
-def run_meld_check(dl_test, eva, cohort):
+def run_meld_check(dl_test, eva, cohort, models=None, device=None):
     # This preserves the existing MELD check logic but is placed into a helper
+    cortex_mask = torch.from_numpy(cohort.cortex_mask)
+    if device is not None:
+        cortex_mask = cortex_mask.to(device)
+
     dice_metric = []
     ppv_metric = []
     iou_metric = []
@@ -99,21 +103,28 @@ def run_meld_check(dl_test, eva, cohort):
     results = []
     all_preds = []
 
-    for batch in tqdm(dl_test):
+    DIST_FILTER_THRESH = 0.63   # same space: model predicts dist_mm/300, GT also /300
+
+    with torch.no_grad():
+      for batch in tqdm(dl_test):
         subject_ids = batch["subject_id"]  # list[str]
 
-        ######################################################### 
+        # #########################################################
         # target_ids = {
-        #     # "MELD_H3_3T_FCD_0018",
-        #     # "MELD_H4_15T_FCD_0021",
-        #     # "MELD_H6_3T_FCD_0017"
-        #     "MELD_H2_3T_FCD_0002"
+        #     "MELD2_H7_3T_FCD_005",
+        #     "MELD_H11_3T_FCD_0011",
+        #     "MELD_H12_3T_FCD_0006",
+        #     "MELD_H14_3T_FCD_0009",
+        #     "MELD_H14_3T_FCD_0017",
+        #     "MELD_H17_15T_FCD_0011",
+        #     "MELD_H17_3T_FCD_0053",
+        #     "MELD_H21_15T_FCD_0052",
         # }
 
         # # если пересечение пустое → пропускаем batch
         # if not (set(subject_ids) & target_ids):
         #     continue
-        ######################################################### 
+        #########################################################
         y = batch["roi"]  # torch.Tensor
         B, H, N = y.shape
 
@@ -121,6 +132,25 @@ def run_meld_check(dl_test, eva, cohort):
         dist_maps = dist_maps.view(B, H, -1)
         dist_maps_cortex = dist_maps[:, :, cohort.cortex_mask]
         dist_maps_cortex = dist_maps_cortex.view(B, -1)
+
+        # --- Get distance predictions: model ensemble if available, else GT dist_maps/300 ---
+        # Model predicts dist_mm/300; GT dist_maps are in mm → divide by 300 for same scale
+        batch_pred_dists = (dist_maps_cortex / 300.0).numpy()
+
+        if models is not None and device is not None:
+            batch_on_device = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in batch.items()}
+            text = batch.get("text", batch_on_device.get("text"))
+            V7 = N
+            model_pred_dists = []
+            for model in models:
+                text_on_device = move_to_device(text, device)
+                outputs = model([subject_ids, text_on_device])
+                if "non_lesion_logits" in outputs:
+                    pred_dist = outputs["non_lesion_logits"].to(device)
+                    pred_dist = pred_dist.reshape(B, H, V7)[:, :, cortex_mask].reshape(B, -1).detach()
+                    model_pred_dists.append(pred_dist)
+            if model_pred_dists:
+                batch_pred_dists = torch.stack(model_pred_dists, 0).mean(0).cpu().numpy()
 
         for b, sid in enumerate(subject_ids):
             gt = y[b]  # [2, N]
@@ -141,13 +171,28 @@ def run_meld_check(dl_test, eva, cohort):
             mini = {sid: {"result": arr.copy()}}
             out = eva.threshold_and_cluster(data_dictionary=mini, save_prediction=False)
             probs_flat = out[sid]["cluster_thresholded"]           # (2*N_cortex,)
+
+            # --- Distance-based cluster filtering ---
+            # Both model output and GT dist_maps are normalized by /300 → same threshold applies
+            pred_dist_subj = batch_pred_dists[b]
+            thresh = DIST_FILTER_THRESH
+            probs_flat_np = probs_flat.detach().cpu().numpy() if isinstance(probs_flat, torch.Tensor) else probs_flat.copy()
+            cluster_ids_filter = np.unique(probs_flat_np)
+            cluster_ids_filter = cluster_ids_filter[cluster_ids_filter > 0]
+            for cid in cluster_ids_filter:
+                cmask = probs_flat_np == cid
+                if np.mean(pred_dist_subj[cmask]) >= thresh:
+                    probs_flat_np[cmask] = 0  # remove cluster
+            probs_flat = probs_flat_np
+
             boundary_zone = dist_maps_cortex_subj < 20
             # boundary_zone_np = boundary_zone.cpu().numpy() if hasattr(boundary_zone, "cpu") else np.array(boundary_zone)
             #probs_flat = np.asarray(probs_flat, dtype=np.float32).ravel()
             
             probs = probs_flat.reshape(2, -1)
-            # final_nii = convert_preds_to_nifti("meld", [sid], [probs], [gt_cortex], cohort)
-            final_nii = convert_preds_to_nifti(ckpt_path="meld", subject_ids=[sid], probs_bin=[probs], c=cohort)
+            # if "_C_" not in sid:
+            #     final_nii = convert_preds_to_nifti("meld", [sid], [probs], [gt_cortex], cohort)
+            # final_nii = convert_preds_to_nifti(ckpt_path="meld", subject_ids=[sid], probs_bin=[probs], c=cohort)
 
             # cluster sizes and distances
             all_ids = np.unique(probs_flat)
@@ -230,6 +275,10 @@ def run_meld_check(dl_test, eva, cohort):
     no_fp_ctrl = sum(1 for t in fp_control_clusters if t == 0)
     pct_spec = no_fp_ctrl / total_ctrl if total_ctrl > 0 else 0.0
 
+    fp_fcd_clusters = [r["number FP clusters"] for r in results if "FCD" in r["subject_id"]]
+    avg_fp_ctrl = float(np.mean(fp_control_clusters)) if fp_control_clusters else 0.0
+    avg_fp_fcd  = float(np.mean(fp_fcd_clusters))     if fp_fcd_clusters     else 0.0
+
     print("\n=== ENSEMBLE OVERALL TEST METRICS ===")
     print(f"Dice : {d_med:.3f} (95% CI {d_lo:.3f}-{d_hi:.3f})")
     print(f"PPV_pixels  : {p_med:.3f} (95% CI {p_lo:.3f}-{p_hi:.3f})")
@@ -238,6 +287,8 @@ def run_meld_check(dl_test, eva, cohort):
     print(f"IoU  : {i_med:.3f} (95% CI {i_lo:.3f}-{i_hi:.3f})")
     print(f"Sensitivity (patients only): {found_tp} / {total_tp} FCDs ({pct_tp:.1%})")
     print(f"Specificity (controls only): {no_fp_ctrl} / {total_ctrl} scans with no FP ({pct_spec:.1%})")
+    print(f"Avg FP clusters per control : {avg_fp_ctrl:.2f}")
+    print(f"Avg FP clusters per FCD     : {avg_fp_fcd:.2f}")
 
 
 def run_trainer_test(model, dl_test, args, accelerator, devices, ckpt_path=None):
@@ -324,7 +375,24 @@ if __name__ == "__main__":
 
     # Branch: MELD check (dataset-level clustering evaluation) or usual model test
     if args.meld_check:
-        run_meld_check(dl_test, eva, cohort)
+        # Optionally load model(s) for distance-based cluster filtering
+        models = None
+        device = get_device()
+        if args.ckpt_prefix:
+            from pathlib import Path
+            ckpt_prefix = Path(args.ckpt_prefix)
+            ckpt_paths = [ckpt_prefix.parent / f"{ckpt_prefix.name}_fold{i+1}.ckpt" for i in range(5)]
+            models = []
+            for i, cp in enumerate(ckpt_paths):
+                m = LanGuideMedSegWrapper.load_from_checkpoint(
+                    checkpoint_path=str(cp), args=args, eva=eva, fold_number=i,
+                    weights_only=False,
+                )
+                m.eval()
+                m.to(device)
+                models.append(m)
+            print(f"[INFO] Loaded {len(models)} models for distance filtering from {args.ckpt_prefix}")
+        run_meld_check(dl_test, eva, cohort, models=models, device=device)
     else:
         ckpt_path = args.ckpt_path
         print(f"[INFO] Loading model from checkpoint: {ckpt_path}")

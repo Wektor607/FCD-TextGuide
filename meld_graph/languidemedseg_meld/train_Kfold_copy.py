@@ -4,9 +4,7 @@ import sys
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import argparse
-import datetime
 import random
-from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -15,7 +13,7 @@ import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
 from engine.wrapper import LanGuideMedSegWrapper
-from pytorch_lightning.loggers import CSVLogger
+# from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import (Callback, EarlyStopping,
                                          ModelCheckpoint)
 from sklearn.model_selection import KFold
@@ -25,26 +23,6 @@ from transformers import AutoTokenizer
 import utils.config as config
 from utils.data import EpilepDataset
 from utils.utils import LesionOversampleSampler
-
-
-class TeeStream:
-    """Duplicates writes to both the original stream and a log file."""
-
-    def __init__(self, original, log_file):
-        self.original = original
-        self.log_file = log_file
-
-    def write(self, msg):
-        self.original.write(msg)
-        self.log_file.write(msg)
-        self.log_file.flush()
-
-    def flush(self):
-        self.original.flush()
-        self.log_file.flush()
-
-    def isatty(self):
-        return False
 
 # Ensure repository root is on sys.path so imports like `meld_graph` resolve
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -137,8 +115,7 @@ def make_dataloaders(args, tokenizer, cohort, train_fold_ids: List[str], val_fol
                 subject_ids=train_fold_ids, 
                 cohort=cohort, 
                 max_length=args.max_len, 
-                text_emb=True,
-                training_mode=True)
+                text_emb=True,)
                 # text_prob_json="/data/preprocessed/mixed/train_prob.json")
     ds_valid = EpilepDataset(csv_path=args.csv_path, 
                 tokenizer=tokenizer, 
@@ -146,8 +123,7 @@ def make_dataloaders(args, tokenizer, cohort, train_fold_ids: List[str], val_fol
                 subject_ids=val_fold_ids, 
                 cohort=cohort, 
                 max_length=args.max_len, 
-                text_emb=True,
-                training_mode=False)
+                text_emb=True,)
                 # text_prob_json="/data/preprocessed/mixed/train_prob.json")
     hc_set = set([sid for sid in train_fold_ids if sid.split("_")[3].startswith("C")])
     labels = [0 if sid in hc_set else 1 for sid in ds_train.subject_ids]
@@ -165,19 +141,9 @@ def make_dataloaders(args, tokenizer, cohort, train_fold_ids: List[str], val_fol
 if __name__ == "__main__":
     args = get_cfg()
 
-    # --- set up log directory and file logging ---
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    job_tag = args.job_name or "run"
-    log_dir = Path(args.model_save_path) / "logs" / f"{job_tag}_{timestamp}"
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    log_file = open(log_dir / "train.log", "w")
-    sys.stdout = TeeStream(sys.__stdout__, log_file)
-    sys.stderr = TeeStream(sys.__stderr__, log_file)
-    print(f"[INFO] Logging to {log_dir / 'train.log'}")
-
     eva, cohort, exp_flags = config.inference_config(data_dir=config.DATA_DIR)
-
+    # wandb_logger = WandbLogger(project=args.project_name, log_model=True)
+    
     df = pd.read_csv(args.split_path, sep=",")
     # CHANGE BACK WITH HEALTHY CONTROLS #################################
     train_ids = df[df.split == "trainval"]["subject_id"].tolist()
@@ -257,18 +223,13 @@ if __name__ == "__main__":
         callback_list = [model_ckpt, early_stopping]
         if args.unfreeze_decoder:
             callback_list.append(freeze_cb)
-
-        csv_logger = CSVLogger(
-            save_dir=str(log_dir),
-            name=f"fold{fold + 1}",
-        )
-
-        trainer = pl.Trainer(min_epochs=args.min_epochs,
-                            max_epochs=args.max_epochs,
-                            accelerator=accelerator,
-                            devices=devices,
-                            callbacks=callback_list,
-                            logger=csv_logger,
+    
+        trainer = pl.Trainer(min_epochs=args.min_epochs, 
+                            max_epochs=args.max_epochs, 
+                            accelerator=accelerator, 
+                            devices=devices, 
+                            callbacks=callback_list, 
+                            # logger=wandb_logger,
                             enable_progress_bar=True,
                             max_time="00:08:00:00")
 

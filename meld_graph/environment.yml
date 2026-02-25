@@ -1,72 +1,86 @@
-name: FCD-meld
+name: FCD-meld-b200-new
 
 channels:
   - conda-forge
   - defaults
 
 dependencies:
-  - python=3.9.18
+  # ---- core ----
+  - python=3.10
   - pip
   - setuptools
   - wheel
-  - libopenblas=0.3.15
+
+  # ---- BLAS / numeric ----
+  - libopenblas>=0.3.21
+  - numpy>=1.24
+  - scipy
+  - scikit-learn
+  - scikit-image>=0.21
+  - pandas>=2.0
+  - h5py>=3.9
+
+  # ---- utils ----
+  - matplotlib>=3.7
+  - seaborn>=0.12
+  - pytest>=7.4
+  - jupyterlab>=4.0
+  - tqdm
+  - pyyaml
   - libtiff
   - fpdf=1.7.2
 
-  # base scientific (conda)
-  - numpy=1.22.0
-  - scipy
-  - scikit-learn
-  - scikit-image=0.18
-  - pandas=1.4.1
-  - h5py=3.6.0
-
-  # utils
-  - matplotlib=3.5.1
-  - seaborn=0.11.0
-  - pytest=7.0.1
-  - jupyterlab=3.2.9
-  - tqdm
-  - pyyaml
-
-  # neuro / medical
-  - nibabel=3.2.2
-  - nilearn=0.10.2
+  # ---- neuro / medical ----
+  - nibabel>=5.1
+  - nilearn>=0.10.2
   - simpleitk
 
   - pip:
-      # PyTorch + CUDA
-      - torch==2.5.1+cu121
-      - torchvision==0.20.1+cu121
-      - torchaudio==2.5.1+cu121
-      - --extra-index-url https://download.pytorch.org/whl/cu121
+      # ======================
+      # PyTorch (Blackwell)
+      # ======================
+      # - --pre
+      # - torch
+      # - torchvision
+      # - torchaudio
+      # - --index-url https://download.pytorch.org/whl/nightly/cu124
 
-      # PyG
-      - torch-scatter
-      - torch-sparse
-      - torch-cluster
-      - torch-geometric==2.5.3
-      - -f https://data.pyg.org/whl/torch-2.5.1+cu121.html
+      # ======================
+      # PyG (nightly-compatible)
+      # ======================
+      # - torch-geometric
+      # - torch-scatter
+      # - torch-sparse
+      # - torch-cluster
+      # - torch-spline-conv
 
+      # ======================
       # ML / DL
-      - pytorch-lightning==2.4.0
-      - torchmetrics==1.4.2
-      - monai==1.3.2
-      - captum==0.6.0
-      - transformers==4.44.2
+      # ======================
+      # - pytorch-lightning>=2.4
+      # - torchmetrics>=1.4
+      # - monai>=1.3
+      # - captum>=0.6
+      # - transformers>=4.44
 
+      # ======================
       # neuro / fs
-      - potpourri3d==0.0.6
-      - lapy==0.6.0
-      - pybids==0.16.4
-      - neuroCombat==0.2.12
+      # ======================
+      # - potpourri3d==0.0.6
+      # - lapy==0.6.0
+      # - pybids>=0.16
+      # - neuroCombat==0.2.12
 
+      # ======================
       # stats
-      - patsy==0.5.4
-      - progressbar2==4.2.0
-      - statsmodels==0.14.1
-      - matplotlib_surface_plotting==0.10
-      
+      # ======================
+      # - patsy>=0.5
+      # - progressbar2>=4.2
+      # - statsmodels>=0.14
+      # - matplotlib_surface_plotting==0.10
+
+      # ======================
       # api
-      - fastapi
-      - uvicorn
+      # ======================
+      # - fastapi
+      # - uvicorn

@@ -208,7 +208,7 @@ def inference_config(data_dir=DATA_DIR):
         "exp1": {"self_att_mechanism": False, "text_emb": False},
         "exp2": {"self_att_mechanism": True, "text_emb": False},
         "exp3": {"self_att_mechanism": True, "text_emb": True},
-        # добавьте другие эксперименты по необходимости
+        # add other experiments as needed
     }
 
     return eva, exp.cohort, exp_flags

@@ -139,8 +139,7 @@ def make_dataloaders(args, tokenizer, cohort, train_fold_ids: List[str], val_fol
                 max_length=args.max_len, 
                 text_emb=True,
                 training_mode=True)
-                # text_prob_json="/data/preprocessed/mixed/train_prob.json")
-    ds_valid = EpilepDataset(csv_path=args.csv_path, 
+    ds_valid = EpilepDataset(csv_path=args.csv_path,
                 tokenizer=tokenizer, 
                 feature_path=args.feature_path, 
                 subject_ids=val_fold_ids, 
@@ -148,7 +147,6 @@ def make_dataloaders(args, tokenizer, cohort, train_fold_ids: List[str], val_fol
                 max_length=args.max_len, 
                 text_emb=True,
                 training_mode=False)
-                # text_prob_json="/data/preprocessed/mixed/train_prob.json")
     hc_set = set([sid for sid in train_fold_ids if sid.split("_")[3].startswith("C")])
     labels = [0 if sid in hc_set else 1 for sid in ds_train.subject_ids]
     sampler = LesionOversampleSampler(labels, seed=fold_seed)
@@ -179,9 +177,7 @@ if __name__ == "__main__":
     eva, cohort, exp_flags = config.inference_config(data_dir=config.DATA_DIR)
 
     df = pd.read_csv(args.split_path, sep=",")
-    # CHANGE BACK WITH HEALTHY CONTROLS #################################
     train_ids = df[df.split == "trainval"]["subject_id"].tolist()
-    # train_ids = df[(df.split == "trainval") & (df["subject_id"].str.contains("FCD"))]["subject_id"].tolist()
     n_splits = 5
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=SEED)
 

@@ -60,7 +60,7 @@
 
 #     data = np.load(f"../data/spinning/spinning_ico{ico_index}_10.npy", allow_pickle=True)
 #     print(type(data))
-#     print(len(data))  # если это кортеж из двух элементов
+#     print(len(data))  # if this is a tuple of two elements
 #     print([arr.shape for arr in data])
 
 import copy

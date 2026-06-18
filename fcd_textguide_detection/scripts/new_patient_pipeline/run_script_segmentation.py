@@ -459,7 +459,7 @@ def run_script_segmentation(list_ids=None, sub_id=None, harmo_code='noHarmo', us
 
 if __name__ == "__main__":
 
-    # аргументы
+    # arguments
     parser = argparse.ArgumentParser(description="perform cortical parcellation using recon-all or FastSurfer")
     parser.add_argument("-harmo_code", "--harmo_code", default="noHarmo", help="Harmonisation code")
     parser.add_argument("--fastsurfer", help="Use FastSurfer instead of FreeSurfer", action="store_true")
@@ -469,11 +469,11 @@ if __name__ == "__main__":
     parser.add_argument("--healthy", help="Get surf data for healthy patients", type=bool, default=False)
     args = parser.parse_args()
     print(args)
-    # найди всех sub-*, у кого есть _roi файл
-    base_dir = os.path.join(MELD_DATA_PATH, "input/ds004199")  # путь к данным
+    # find all sub-* with a _roi file
+    base_dir = os.path.join(MELD_DATA_PATH, "input/ds004199")  # path to data
     fs_outputs_dir = os.path.join(MELD_DATA_PATH, "output/fs_outputs")
 
-    # найти всех sub-*, у кого есть roi
+    # find all sub-* with roi
     # if args.healthy == False:
     #     subjects_roi = sorted(set(
     #         os.path.basename(os.path.dirname(os.path.dirname(p)))
@@ -485,13 +485,13 @@ if __name__ == "__main__":
     #         if os.path.isdir(os.path.join(base_dir, d)) and d.startswith("sub-")
     #     ])
 
-    #     # 2) Отбираем тех, у кого отсутствует ROI
+    #     # 2) Select subjects without ROI
     #     subjects_no_roi = [
     #         sub for sub in all_subjects
     #         if len(glob.glob(os.path.join(base_dir, sub, "anat", "*_roi*.nii*"))) == 0
     #     ]
 
-    #     # если нужно тот же reverse по args.inv:
+    #     # if the same reverse by args.inv is needed:
     #     subjects_roi = sorted(subjects_no_roi, reverse=args.inv)
 
     #     print("Subjects without ROI:", subjects_no_roi)
@@ -502,7 +502,7 @@ if __name__ == "__main__":
     ])
     # print(all_subjects)
     # sys.exit()
-    # исключить тех, у кого уже есть папка в fs_outputs
+    # exclude subjects already processed in fs_outputs
     # subjects_remain = [
     #     sid for sid in subjects_roi
     #     if not os.path.isdir(os.path.join(fs_outputs_dir, sid))
@@ -520,7 +520,7 @@ if __name__ == "__main__":
     for scanner in scanners:
         df_scanner = df[df["Scanner"] == scanner].copy()
         
-        # список участников этого сканера, у кого есть ROI и нет готового FreeSurfer-вывода
+        # subjects for this scanner with ROI but no completed FreeSurfer output
         subject_ids = [
             sid for sid in df_scanner["participant_id"]
             if sid in all_subjects

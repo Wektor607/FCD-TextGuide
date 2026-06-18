@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 from torch_geometric.data import Batch, Data
 
-from languidemedseg_meld.engine.pooling import HexPool, HexUnpool
-from languidemedseg_meld.models.layers import GuideDecoder
+from fcd_texguide_model.engine.pooling import HexPool, HexUnpool
+from fcd_texguide_model.models.layers import GuideDecoder
 from meld_graph.icospheres import IcoSpheres
 from meld_graph.spiralconv import SpiralConv
 
@@ -19,6 +19,26 @@ from .vision_model import VisionModel
 
 
 class LanGuideMedSeg(nn.Module):
+    """Language-guided graph segmentation model for FCD detection on cortical surfaces.
+
+    Combines a hierarchical GNN encoder (VisionModel) with a frozen BERT text encoder.
+    Decoded features are fused with text embeddings at each decoder stage via GuideDecoder.
+    Deep supervision heads produce auxiliary segmentation outputs at intermediate icosphere levels.
+
+    Args:
+        bert_type: HuggingFace model name for the text encoder (e.g. 'bert-base-uncased').
+        layer_sizes: SpiralConv channel sizes per decoder stage, ordered coarse-to-fine.
+        device: Target device for graph data.
+        feature_dim: Channel dimensions per encoder stage (len = num_stages).
+        text_lens: Text sequence lengths per decoder stage.
+        max_len: Maximum tokenizer sequence length.
+        gnn_min_verts: Minimum vertex count to apply GNN (skipped for very coarse levels).
+        num_unfreeze_layers: Number of BERT layers to fine-tune (0 = fully frozen).
+        fold_number: Which data fold to load features from (for K-fold CV).
+        att_mechanism: Whether to use cross-attention in GuideDecoder.
+        text_emb: Whether to pass text embeddings into the decoder.
+    """
+
     def __init__(
         self,
         bert_type: str,
@@ -149,6 +169,21 @@ class LanGuideMedSeg(nn.Module):
     def forward(
         self, data: Tuple[List[str], Dict[str, torch.Tensor]]
     ) -> Dict[str, torch.Tensor]:
+        """Run the full encoder-decoder forward pass.
+
+        Args:
+            data: Tuple of (subject_ids, text), where
+                subject_ids: list of B subject ID strings used to load graph features.
+                text: tokenizer output dict with 'input_ids' and 'attention_mask' [B, L].
+
+        Returns:
+            Dict with keys:
+                'log_softmax': [B*H*V1, 2] — final segmentation log-probabilities.
+                'hemi_log_softmax': [B, 2] — hemisphere-level classification log-probs.
+                'non_lesion_logits': [B*H*V1] — distance-to-lesion regression output.
+                'ds{level}_log_softmax': deep supervision outputs at intermediate levels.
+                'ds{level}_non_lesion_logits': deep supervision distance outputs.
+        """
         subject_ids, text = data
         B = len(subject_ids)
 

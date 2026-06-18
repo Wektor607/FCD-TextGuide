@@ -1,7 +1,7 @@
 services:
-  meld_graph:
+  fcd_textguide_detection:
     build: .
-    image: meldproject/meld_graph:latest
+    image: meldproject/fcd_textguide_detection:latest
     platform: "linux/amd64"
     runtime: nvidia
     tty: true
@@ -12,7 +12,7 @@ services:
       - FS_LICENSE=/run/secrets/license.txt
       - MELD_LICENSE=/run/secrets/meld_license.txt
     volumes:
-      - /home/mikhelson/FCD-Detection/meld_graph/data:/data # Change on your local path
+      - {YOUR_PATH}/fcd_textguide_detection/data:/data # Change on your local path
     secrets:
       - license.txt
       - meld_license.txt

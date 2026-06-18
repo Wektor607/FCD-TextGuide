@@ -1,9 +1,60 @@
----
-
 # Text Generation Pipeline (Atlas-Based Descriptions)
 
 This folder contains a multi-stage pipeline for generating **raw and derived textual descriptions of epileptogenic lesions** based on anatomical atlases (Harvard–Oxford, AAL).
 The pipeline starts from **surface-based lesion representations** and produces multiple CSV files with different types of textual descriptions that can be used for multimodal learning (e.g. vision–language models).
+
+---
+
+## Quick Start
+
+All scripts are run from the **repository root** (`fcd_textguide_detection/`).
+
+**Step 1 — Generate raw atlas-based text descriptions:**
+
+```bash
+python utils/text_generation/generate_raw_reports.py \
+  --data4sharing_root /data/output/data4sharing
+```
+
+Output: `/data/output/data4sharing/all_augmented_reports.csv`
+
+---
+
+**Step 2a — Build dataset CSV with text:**
+
+```bash
+python utils/text_generation/build_dataset_with_text.py
+```
+
+Output: `MELD_BONN_dataset_augmented_final.csv`
+
+**Step 2b — Build dataset CSV without text (vision-only baseline):**
+
+```bash
+python utils/text_generation/build_dataset_without_text.py
+```
+
+---
+
+**Step 3 — Transform text into specific modes:**
+
+```bash
+echo "hemisphere" | python utils/text_generation/transform_text_modes.py
+echo "lobe" | python utils/text_generation/transform_text_modes.py
+echo "hemisphere_lobe" | python utils/text_generation/transform_text_modes.py
+```
+
+Output: `final_aug_text/MELD_BONN_<MODE>.csv`
+
+---
+
+**Step 4 (optional) — Build mixed-text dataset:**
+
+```bash
+python utils/text_generation/build_mixed_text_dataset.py
+```
+
+Output: `MELD_BONN_mixed.csv`
 
 ---
 
@@ -54,7 +105,13 @@ data4sharing_root/
 │   └── ...
 ```
 
-To generate these files, it is necessary to run the updated MELD script: `../meld_graph/scripts/new_patient_pipeline/run_script_prediction_bonn_data.py`
+To generate these files, run the MELD prediction script:
+
+```bash
+python scripts/new_patient_pipeline/run_script_prediction_meld.py \
+  --split_path /data/MELD_splits.csv \
+  --aug_mode train
+```
 
 Where:
 

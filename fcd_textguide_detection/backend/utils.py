@@ -6,9 +6,7 @@ import numpy as np
 
 
 def parse_id(filename: str) -> str:
-    """
-    Оставляет только MELD_ID до суффиксов _control/_patient
-    """
+    """Extract MELD subject ID, stripping _control/_patient suffixes."""
     match = re.match(r"^(MELD_[^_]+_[^_]+_[^_]+_[^_]+)", filename)
     if match:
         return match.group(1)

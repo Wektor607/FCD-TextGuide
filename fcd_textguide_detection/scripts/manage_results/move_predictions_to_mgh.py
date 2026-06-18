@@ -7,7 +7,7 @@ import h5py
 import nibabel as nb
 import numpy as np
 
-from languidemedseg_meld.utils.converter_mgh_to_nifti import \
+from fcd_texguide_model.utils.converter_mgh_to_nifti import \
     get_combat_feature_path
 from meld_graph.meld_cohort import MeldCohort
 from meld_graph.paths import MELD_DATA_PATH
@@ -57,7 +57,7 @@ def move_predictions_to_mgh(subject_id, subjects_dir, prediction_file, verbose=F
         #     return False   
 
         try:
-            # сначала пытаемся загрузить настоящий demo
+            # try to load the actual demo first
             demo_path = os.path.join(subjects_dir, subject_id, "xhemi", "surf_meld", f"{hemi}.on_lh.thickness.mgh")
             if os.path.exists(demo_path):
                 demo = nb.load(demo_path)
@@ -77,7 +77,7 @@ def move_predictions_to_mgh(subject_id, subjects_dir, prediction_file, verbose=F
                 affine = nb.load(Path("/data/input") / "fsaverage_sym" / "mri" / "T1.mgz").affine
                 demo = nb.MGHImage(
                     dataobj=data4d,
-                    affine=affine     # или affine от fsaverage_sym T1.mgz
+                    affine=affine     # or affine from fsaverage_sym T1.mgz
                 )
                 
         except Exception as e:

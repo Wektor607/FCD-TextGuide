@@ -1182,9 +1182,9 @@ class Evaluator:
         """
         Save predictions for one subject into its own HDF5 file.
         """
-        # создаём индивидуальную папку для пациента
+        # create per-patient output directory
         subj_dir = os.path.join(
-            self.save_dir,               # обычно .../classifier_outputs/model_name
+            self.save_dir,               # typically .../classifier_outputs/model_name
             "results_best_model",
             subject_id
         )

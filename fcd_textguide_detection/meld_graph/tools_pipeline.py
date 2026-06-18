@@ -23,7 +23,7 @@ def get_m(message, subject=None, type_message='INFO'):
     except Exception as e:
         msg = f"{timestamp} | {type_message}: {message} (logging error: {e})"
 
-    # записать в лог-файл (добавить)
+    # write to log file (append)
     if subject is not None:
         subject_dir = os.path.join(FS_SUBJECTS_PATH, subject)
         if os.path.isdir(subject_dir):

@@ -9,7 +9,19 @@ from transformers import AutoModel
 
 
 class BERTModel(nn.Module):
-    def __init__(self, 
+    """BERT-based text encoder with optional partial fine-tuning.
+
+    Wraps a HuggingFace AutoModel (e.g. bert-base-uncased). All parameters are frozen
+    by default; the last `num_unfreeze_layers` transformer layers and the pooler can be
+    optionally unfrozen for fine-tuning.
+
+    Args:
+        bert_type: HuggingFace model name or path.
+        num_unfreeze_layers: Number of encoder layers to unfreeze (0 = fully frozen).
+        use_pooler: Whether to unfreeze the pooler layer when fine-tuning.
+    """
+
+    def __init__(self,
         bert_type: str, 
         num_unfreeze_layers: int = 0, 
         use_pooler: bool = True
@@ -22,8 +34,8 @@ class BERTModel(nn.Module):
         for param in self.model.parameters():
             param.requires_grad = False
 
-        # 2) unfreeze_last_k слоёв BERT
-        #    BertEncoder store them in .encoder.layer: list of 12 BertLayer
+        # 2) unfreeze the last k layers of BERT
+        #    BertEncoder stores them in .encoder.layer: list of 12 BertLayer
         k = max( 0, min(num_unfreeze_layers, getattr(self.model.config, "num_hidden_layers", 12)))
         if (
             k > 0
@@ -44,6 +56,14 @@ class BERTModel(nn.Module):
 
 
     def forward(self, text: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """Encode tokenized text and return last hidden states.
+
+        Args:
+            text: Dict with 'input_ids' and 'attention_mask', each [B, L].
+
+        Returns:
+            Dict with 'feature': last hidden state tensor [B, L, hidden_size].
+        """
         output = self.model(
             **text,
             output_hidden_states=True,

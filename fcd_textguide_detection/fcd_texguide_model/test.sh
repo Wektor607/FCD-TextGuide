@@ -32,8 +32,8 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cd /home/s17gmikh/FCD-Detection/meld_graph
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
-WANDB_MODE=disabled python3 languidemedseg_meld/test_Kfold.py \
-  --config languidemedseg_meld/config/training.yaml \
+WANDB_MODE=disabled python3 fcd_texguide_model/test_Kfold.py \
+  --config fcd_texguide_model/config/training.yaml \
   --ckpt_prefix save_model/exp1
 # exp3_no_gnn_mixed_freeeze
 # WANDB_MODE=disabled python3 test.py  --meld_check

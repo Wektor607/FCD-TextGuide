@@ -16,6 +16,41 @@ built on top of the [**MELD Graph**](https://github.com/MELDProject/meld_graph/t
 
 ---
 
+## Project Structure
+
+```
+fcd_textguide_detection/
+├── fcd_texguide_model/          # Main multimodal model (training, testing, inference)
+│   ├── config/                  # Training configuration (YAML)
+│   ├── engine/                  # Loss functions, pooling, Lightning wrapper
+│   ├── models/                  # Vision encoder, language encoder, fusion model
+│   ├── utils/                   # Data loading, converters, visualization
+│   ├── train_Kfold.py           # K-fold cross-validation training
+│   ├── test_Kfold.py            # Ensemble evaluation (K-fold)
+│   ├── test.py                  # MELD baseline evaluation
+│   └── inference.py             # Single-patient inference (used by backend)
+│
+├── meld_graph/                  # MELD Graph library (preprocessing & graph tools)
+│
+├── scripts/                     # MELD preprocessing and pipeline scripts
+│
+├── utils/                       # Shared utilities
+│   ├── text_generation/         # LLM-based text report generation for subjects
+│   ├── hdf5_splitter.py
+│   └── plotting.py
+│
+├── backend/                     # FastAPI backend for web interface
+├── frontend/                    # React frontend with NIfTI 3D viewer
+│
+├── Dockerfile                   # Main Docker image (training/inference)
+├── compose.yml                  # Docker Compose for training container
+├── docker-web-compose.yml       # Docker Compose for web interface
+├── environment.yml              # Conda environment
+└── meld_config.ini              # MELD data paths configuration
+```
+
+---
+
 ## 1. Prerequisites
 
 ### 1.1 Install Docker
@@ -58,10 +93,10 @@ You will receive a file called:
 license.txt
 ```
 
-Move the license file to the **meld_graph root folder** (where `Dockerfile` is located):
+Move the license file to the **fcd_textguide_detection root folder** (where `Dockerfile` is located):
 
 ```
-meld_graph/
+fcd_textguide_detection/
 ├── Dockerfile
 ├── compose.yml
 ├── license.txt   ← HERE
@@ -88,7 +123,7 @@ Edit `compose.yml`:
 
 ```yaml
 volumes:
-  - {YOUR_PATH}/meld_graph/data:/data
+  - {YOUR_PATH}/fcd_textguide_detection/data:/data
 ```
 
 ⚠️ This path **must point to your local data directory**.
@@ -133,7 +168,7 @@ Run once:
 
 ```bash
 DOCKER_USER="$(id -u):$(id -g)" \
-docker compose run meld_graph \
+docker compose run fcd_textguide_detection \
 python scripts/new_patient_pipeline/prepare_classifier.py
 ```
 
@@ -187,7 +222,7 @@ Instructions and scripts for generating text descriptions are provided here:
 
 ```
 
-meld_graph/utils/text_generation/README.md
+fcd_textguide_detection/utils/text_generation/README.md
 
 ```
 
@@ -209,7 +244,7 @@ DOCKER_BUILDKIT=0 docker compose -f compose.yml build
 ### 4.2 Start Container
 
 ```bash
-docker compose up -d meld_graph
+docker compose up -d fcd_textguide_detection
 ```
 
 ---
@@ -217,7 +252,7 @@ docker compose up -d meld_graph
 ### 4.3 Enter Container
 
 ```bash
-docker compose exec meld_graph bash
+docker compose exec fcd_textguide_detection bash
 ```
 
 ---
@@ -226,8 +261,8 @@ docker compose exec meld_graph bash
 
 ```bash
 WANDB_MODE=disabled \
-python languidemedseg_meld/train_Kfold.py \
-  --config languidemedseg_meld/config/training.yaml \
+python fcd_texguide_model/train_Kfold.py \
+  --config fcd_texguide_model/config/training.yaml \
   --job_name exp2
 ```
 
@@ -258,8 +293,8 @@ significantly reduce the effectiveness of the ensemble.
 ```markdown
 ```bash
 WANDB_MODE=disabled \
-python3 languidemedseg_meld/test_Kfold.py \
-  --config languidemedseg_meld/config/training.yaml \
+python3 fcd_texguide_model/test_Kfold.py \
+  --config fcd_texguide_model/config/training.yaml \
   --ckpt_prefix saved_models/exp2
 ````
 

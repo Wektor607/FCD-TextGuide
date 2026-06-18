@@ -199,7 +199,7 @@ class GuideDecoder(nn.Module):
         # concat by channels
         cat_feat = torch.cat([vis_upsampled, skip_vis], dim=-1)
 
-        # 4) flatten для SpiralConv
+        # 4) flatten for SpiralConv
         B, HN, C_f = cat_feat.shape
         N = HN // H
         x = cat_feat.view(B, H, N, C_f)
@@ -208,7 +208,7 @@ class GuideDecoder(nn.Module):
             # take hemisphere h: [B, N, C_f]
             x_h = x[:, h, :, :]
 
-            # flatten для SpiralConv → [B*N, C_f]
+            # flatten for SpiralConv → [B*N, C_f]
             x_h = x_h.reshape(B * N, C_f)
 
             for conv in spiral_conv:

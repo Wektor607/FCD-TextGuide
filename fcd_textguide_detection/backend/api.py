@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from languidemedseg_meld.inference import inference
+from fcd_texguide_model.inference import inference
 
 from .config import (DEFAULT_DEMOGRAPHIC_FILE, OUTPUT_DIR, RESULT_DIR, T1_FILE,
                      UPLOAD_DIR, ensure_dirs)

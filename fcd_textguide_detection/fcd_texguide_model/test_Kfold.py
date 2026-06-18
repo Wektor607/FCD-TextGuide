@@ -339,8 +339,8 @@ def postprocess_and_save(args, all_subject_ids, all_labels, all_dist_maps, all_p
         pred_left = pred[0].detach().cpu().numpy().astype("float32")
         pred_right = pred[1].detach().cpu().numpy().astype("float32")
 
-        # Убедимся, что мы объединяем по оси вершин, не по каналам
-        pred_np = np.concatenate([pred_left, pred_right], axis=-1)  # <-- правильно
+        # concatenate along vertex axis, not channel axis
+        pred_np = np.concatenate([pred_left, pred_right], axis=-1)
         mini = {sid: {"result": pred_np}}
 
         out = eva.threshold_and_cluster(data_dictionary=mini, save_prediction=False)
@@ -369,12 +369,12 @@ def postprocess_and_save(args, all_subject_ids, all_labels, all_dist_maps, all_p
         ###############################
         cluster_ids = probs_flat_cpu[probs_flat_cpu > 0].astype(np.int32)
         ids, counts = np.unique(cluster_ids, return_counts=True)
-        # отсортируем по размеру
+        # sort by cluster size descending
         order = np.argsort(-counts)
         ids, counts = ids[order], counts[order]
 
         max_cluster = int(counts[0]) if len(counts) else 0
-        # можно залогировать для контролей
+        # log for controls to monitor FP clusters
         if is_control:
             print(sid, "n_clusters=", len(counts), "max_cluster=", max_cluster, "top_sizes=", counts[:5])
         ###############################

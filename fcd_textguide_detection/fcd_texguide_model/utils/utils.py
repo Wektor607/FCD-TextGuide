@@ -113,11 +113,6 @@ def convert_preds_to_nifti(ckpt_path,
         # ============================================================
         for idx, hemi in enumerate(["lh", "rh"]):
 
-            # overlay = np.zeros_like(c.cortex_mask, dtype=np.float32)
-            # print(c.cortex_mask.shape, predictions[idx].shape)
-            # sys.exit(0)
-            # overlay[c.cortex_mask] = predictions[idx]
-
             pred_surface = np.zeros_like(c.cortex_mask, dtype=np.float32)
             pred_surface[c.cortex_mask] = predictions[idx]
 
@@ -142,10 +137,7 @@ def convert_preds_to_nifti(ckpt_path,
 
             mgh_img = nib.MGHImage(base_arr[np.newaxis, :, np.newaxis], affine)
 
-            # print(overlay.shape)
-            # sys.exit(0)
             out_mgh_pred = classifier_dir / f"{hemi}.prediction.mgh"
-            # save_mgh(out_mgh_pred, overlay, mgh_img)
             save_mgh(out_mgh_pred, pred_surface, mgh_img)
 
             convert_prediction_mgh_to_nii(
@@ -282,7 +274,7 @@ def concat_side_by_side(img1_path, img2_path, save_path):
     im1 = Image.open(img1_path)
     im2 = Image.open(img2_path)
 
-    # выравниваем по высоте
+    # align by height
     h = im1.height + im2.height
     w = max(im1.width, im2.width)
 
@@ -296,12 +288,12 @@ def concat_side_by_side(img1_path, img2_path, save_path):
 def summarize_clusters(cluster_mask, hemi_names=["left", "right"]):
     summary = []
     for h, hemi in enumerate(hemi_names):
-        hemi_mask = cluster_mask[h]  # бинарная маска для полушария
-        labels, num = ndimage.label(hemi_mask)  # находим кластеры
+        hemi_mask = cluster_mask[h]  # binary mask for this hemisphere
+        labels, num = ndimage.label(hemi_mask)  # find connected clusters
         for cluster_id in range(1, num + 1):
             coords = np.argwhere(labels == cluster_id)
-            volume = coords.shape[0]  # количество вокселей
-            center = coords.mean(axis=0).astype(int).tolist()  # центр масс
+            volume = coords.shape[0]  # number of voxels
+            center = coords.mean(axis=0).astype(int).tolist()  # center of mass
             summary.append({
                 "hemi": hemi,
                 "volume_voxels": int(volume),
@@ -354,8 +346,6 @@ def generate_random_text(text_probs: json):
     Generate: <hemisphere> + <lobe>
     Example: "Left Hemisphere; Temporal lobe"
     """
-    # if not isinstance(text_probs, dict):
-    #     return "full brain"
 
     hemi = random_from_distribution(text_probs.get("hemisphere_text", {}))
     lobe = random_from_distribution(text_probs.get("lobe_text", {}))

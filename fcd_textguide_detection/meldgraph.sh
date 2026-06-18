@@ -16,7 +16,7 @@ set -e
 
 export MELD_LICENSE='meld_license.txt'
 
-# ⚠️ conda ТОЛЬКО если она реально есть
+# ⚠️ activate conda only if it is actually installed
 if command -v conda >/dev/null 2>&1; then
   eval "$(conda shell.bash hook)"
 #   conda activate meld_graph

@@ -21,16 +21,16 @@ if __name__ == '__main__':
 
         from matplotlib import gridspec
 
-        # 1) Создаём фигуру и GridSpec-сетку
+        # 1) create figure and GridSpec layout
         fig = plt.figure(figsize=(14, 10))
         gs  = gridspec.GridSpec(
             2, 2,
             figure=fig,
-            wspace=0.02,  # горизонтальные отступы
-            hspace=0.02   # вертикальные отступы
+            wspace=0.02,  # horizontal spacing
+            hspace=0.02   # vertical spacing
         )
 
-        # 2) Рисуем каждую ячейку
+        # 2) draw each cell
         ax0 = fig.add_subplot(gs[0, 0])
         plotting.plot_roi(
             roi, bg_img=bg_nii, axes=ax0,
@@ -59,7 +59,7 @@ if __name__ == '__main__':
             title='MELD prediction', cmap='autumn', annotate=False
         )
 
-        # 3) Пустая ячейка
+        # 3) empty cell
         ax3 = fig.add_subplot(gs[1,1])
         ax3.axis('off')
 

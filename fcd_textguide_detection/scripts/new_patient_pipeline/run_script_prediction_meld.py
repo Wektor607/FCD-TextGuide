@@ -51,9 +51,9 @@ os.makedirs(FEATURE_PATH, exist_ok=True)
 
 def save_surface_mgh(arr_1d, out_path: str):
     arr = np.asarray(arr_1d).ravel().astype(np.float32, copy=False)
-    data3d = arr[:, None, None]          # (N, 1, 1) — НЕ (N,1,1,1)!
+    data3d = arr[:, None, None]          # (N, 1, 1) — NOT (N,1,1,1)!
     img = nb.freesurfer.mghformat.MGHImage(data3d, np.eye(4))
-    nb.save(img, out_path)               # .mgh или .mgz — без разницы
+    nb.save(img, out_path)               # .mgh or .mgz — both work
 
 def predict_subjects(subject_ids, output_dir, plot_images = False, saliency=False,
     experiment_path=EXPERIMENT_PATH, hdf5_file_root= DEFAULT_HDF5_FILE_ROOT, aug_mode='test', return_results=False):       
@@ -111,7 +111,7 @@ def predict_subjects(subject_ids, output_dir, plot_images = False, saliency=Fals
 
     # eva.load_predict_data(save_prediction=False)
 
-    # # вручную сохраняем predictions для каждого пациента
+    # # manually save predictions per patient
     # for subject_id in subject_ids:
     #     pred = eva.data_dictionary[subject_id]["result"]
     #     eva.save_prediction_for_subject(subject_id, pred, dataset_str="prediction_clustered")
@@ -127,7 +127,7 @@ def predict_subjects(subject_ids, output_dir, plot_images = False, saliency=Fals
         # xyzr_gt         = eva.data_dictionary[subject_id]["xyzr"]
         
         if return_results:
-            # складываем всё в словарь Python
+            # collect results into a Python dict
             results_dict[subject_id] = {
                 "features": {k: v.detach().cpu().numpy() for k, v in features.items()},
                 "result": result if isinstance(result, np.ndarray) else {
@@ -148,7 +148,7 @@ def predict_subjects(subject_ids, output_dir, plot_images = False, saliency=Fals
             rh = labels_np[n_hemi:].astype(np.float32)
             
             # estimates    = eva.data_dictionary[subject_id]["estimates"]
-            # используем тот output_dir, который пришёл в функцию
+            # use the output_dir passed to this function
             save_dir = Path(FEATURE_PATH) /subject_id / "features"
             print(save_dir)
             os.makedirs(save_dir, exist_ok=True)
@@ -168,10 +168,10 @@ def predict_subjects(subject_ids, output_dir, plot_images = False, saliency=Fals
             # np.savez(xyzr_path, xyzr_gt)
             # print(f"Saved xyzr GT to {xyzr_path}")
 
-            # сохраняем labels в .mgh или .mgz (можно .mgz — будет меньше весить)
+            # save labels as .mgh or .mgz (.mgz is compressed)
             lab_dir  = Path(FEATURE_PATH) /subject_id / "labels"
-            lh_path = os.path.join(lab_dir, "labels-lh.mgh")  # или "labels-lh.mgz"
-            rh_path = os.path.join(lab_dir, "labels-rh.mgh")  # или "labels-rh.mgz"
+            lh_path = os.path.join(lab_dir, "labels-lh.mgh")  # or "labels-lh.mgz"
+            rh_path = os.path.join(lab_dir, "labels-rh.mgh")  # or "labels-rh.mgz"
             os.makedirs(lab_dir, exist_ok=True)
             save_surface_mgh(lh, lh_path)
             save_surface_mgh(rh, rh_path)
@@ -247,7 +247,7 @@ def run_script_prediction(list_ids=None, sub_id=None, harmo_code='noHarmo', no_p
 
         valid_subjects = set(split_df["subject_id"].astype(str).values)
 
-        # пересечение
+        # intersection of subject IDs
         subject_ids = np.array([
             s for s in subject_ids
             if s in valid_subjects
@@ -255,12 +255,12 @@ def run_script_prediction(list_ids=None, sub_id=None, harmo_code='noHarmo', no_p
 
         if len(subject_ids) == 0:
             raise RuntimeError(
-                "После фильтрации по split-файлу не осталось ни одного subject_id"
+                "No subject_ids remaining after filtering by split file"
             )
 
         print(f"[INFO] Subjects after split filtering: {len(subject_ids)}")
 
-    # ВРЕМЕННО    
+    # TEMPORARY    
     # subject_ids = np.array([s for s in subject_ids if any(h in s for h in ["H26_", "H27_", "H28_", "H101_"])])
     # initialise variables
     model_name = MODEL_PATH
@@ -359,17 +359,17 @@ def run_script_prediction(list_ids=None, sub_id=None, harmo_code='noHarmo', no_p
                 continue
             
             ########################################################################################################################
-            # Убрать для инференса, иначе объект не создается
-            # ------ ПРОПУСК, ЕСЛИ УЖЕ БЫЛО ПРЕОБРАЗОВАНО ------
-            # --- пропуск, если это тест ---
+            # Remove for inference, otherwise the object is not created
+            # ------ SKIP IF ALREADY PROCESSED ------
+            # --- skip if this is a test subject ---
             # if subject_id in meld_test_split or subject_id in bonn_test_split:
             # if subject_id in bonn_test_split:
-            #     print(f"[SKIP TEST] {subject_id} принадлежит test split → пропуск.")
+            #     print(f"[SKIP TEST] {subject_id} belongs to test split → skipping.")
             #     continue
 
             preproc_root = os.path.join("./data", "preprocessed", "meld_files", subject_id)
             if os.path.isdir(preproc_root):
-                print(f"[SKIP] {subject_id} уже обработан (папка {preproc_root} существует)")
+                print(f"[SKIP] {subject_id} already processed (folder {preproc_root} exists)")
                 continue
             # -----------------------------------------------
             ########################################################################################################################
@@ -575,18 +575,18 @@ if __name__ == '__main__':
     if args.return_results and results is not None:
         import pickle
 
-        # базовая директория для всех результатов
+        # base directory for all results
         base_dir = "/home/s17gmikh/FCD-Detection/backend/data_results"
         os.makedirs(base_dir, exist_ok=True)
 
-        # если results — список, берём первый словарь
+        # if results is a list, take the first dict
         if isinstance(results, list):
             results = results[0]
 
-        # берём subject_id (он у тебя ключ в словаре)
+        # extract subject_id (used as dict key)
 
-        # создаём папку для конкретного пациента
-        subject_dir = os.path.join(base_dir, *results.keys())  # достаёт id без хардкода
+        # create per-patient output directory
+        subject_dir = os.path.join(base_dir, *results.keys())  # extract id without hardcoding
         os.makedirs(subject_dir, exist_ok=True)
 
         out_path = os.path.join(subject_dir, "results.pkl")
@@ -594,5 +594,5 @@ if __name__ == '__main__':
             pickle.dump(results, f)
 
 
-        # выводим в stdout только путь
+        # print only the path to stdout
         print(out_path)

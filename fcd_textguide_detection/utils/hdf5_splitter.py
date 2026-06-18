@@ -5,6 +5,7 @@ import h5py
 
 
 def recursive_copy(src_group, dst_group):
+    """Recursively copy all datasets and groups from src_group into dst_group."""
     for key in src_group.keys():
         item = src_group[key]
         if isinstance(item, h5py.Dataset):

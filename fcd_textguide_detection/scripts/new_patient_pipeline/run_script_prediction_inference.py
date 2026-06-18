@@ -54,9 +54,9 @@ os.makedirs(FEATURE_PATH, exist_ok=True)
 
 def save_surface_mgh(arr_1d, out_path: str):
     arr = np.asarray(arr_1d).ravel().astype(np.float32, copy=False)
-    data3d = arr[:, None, None]          # (N, 1, 1) — НЕ (N,1,1,1)!
+    data3d = arr[:, None, None]          # (N, 1, 1) — NOT (N,1,1,1)!
     img = nb.freesurfer.mghformat.MGHImage(data3d, np.eye(4))
-    nb.save(img, out_path)               # .mgh или .mgz — без разницы
+    nb.save(img, out_path)               # .mgh or .mgz — both work
 
 def predict_subjects(subject_ids, output_dir, plot_images = False, saliency=False,
     experiment_path=EXPERIMENT_PATH, hdf5_file_root= DEFAULT_HDF5_FILE_ROOT, aug_mode='test'):       
@@ -120,7 +120,7 @@ def predict_subjects(subject_ids, output_dir, plot_images = False, saliency=Fals
         features        = eva.data_dictionary[subject_id]["feature_maps"]
         result          = eva.data_dictionary[subject_id]["cluster_thresholded"]
 
-        # складываем всё в словарь Python
+        # collect results into a Python dict
         results_dict[subject_id] = {
             "features": {k: v.detach().cpu().numpy() for k, v in features.items()},
             "result": result if isinstance(result, np.ndarray) else {

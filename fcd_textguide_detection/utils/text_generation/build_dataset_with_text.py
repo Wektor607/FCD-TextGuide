@@ -5,45 +5,28 @@ import os
 import pandas as pd
 
 if __name__ == "__main__":
-    # Path to your existing CSV file with results
-    # CHANGE BACK TO FULL #######################################################
-    reports_csv = "/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/preprocessed/meld_files/all_augmented_reports.csv"  # H101_reports.csv"
-    
-    # Root directory where your HDF5/NIfTI files are located
-    comb_root   = "/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/data4sharing/meld_combats"
-    
-    # CHANGE BACK TO FULL #######################################################
-    out_dir     = "/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/preprocessed/MELD_BONN_dataset_augmented_final.csv"  # H101_reports_full.csv"
+    reports_csv = "/data/input/preprocessed/meld_files/all_augmented_reports.csv"
+    comb_root   = "/data/input/data4sharing/meld_combats"
+    out_path    = "/data/input/preprocessed/MELD_BONN_dataset_augmented_final.csv"
 
-    # Read the reports CSV
     reports_df = pd.read_csv(reports_csv, dtype=str)
 
-    # Open a new CSV file for writing
-    with open(out_dir, 'w', newline='', encoding='utf-8') as f:
+    with open(out_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(['DATA_PATH', 'ROI_PATH', 'harvard_oxford', 'aal'])
 
         for _, row in reports_df.iterrows():
-            sid   = row['subject_id']
-            harv  = row['report_harvard_oxford']
-            aal   = row['report_aal']
+            sid  = row['subject_id']
+            harv = row['report_harvard_oxford']
+            aal  = row['report_aal']
 
-            # 1) Search for the HDF5 file using the pattern "{sid}_*featurematrix*.hdf5"
             pattern_h5 = os.path.join(comb_root, f"{sid}_*featurematrix*.hdf5")
             h5_list = glob.glob(pattern_h5)
             if not h5_list:
-                print(f"❌ HDF5 not found for {sid}")
-                # print(pattern_h5)
-                # data_path = pattern_h5.split("*")[0] + 'control_featurematrix_combat.hdf5'
-                
-                # writer.writerow([data_path, '', harv, aal])
+                print(f"HDF5 not found for {sid}")
                 continue
-            
-            data_path = h5_list[0]
-            if "control" in pattern_h5:
-                roi_path = ''
-            else:
-                roi_path = data_path
 
-            # 3) Write the row to the output CSV
+            data_path = h5_list[0]
+            roi_path  = '' if "control" in sid else data_path
+
             writer.writerow([data_path, roi_path, harv, aal])

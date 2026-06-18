@@ -27,7 +27,6 @@ from meld_graph.paths import MELD_DATA_PATH
 from utils.data import EpilepDataset
 from utils.utils import convert_preds_to_nifti, move_to_device, summarize_ci
 
-# теперь можно вызвать
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 
@@ -41,15 +40,14 @@ torch.cuda.manual_seed_all(SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-# Полная детерминированность и отключение TF32 (даёт меньший дрейф на Ampere/Ada)
+# Full determinism; disable TF32 to reduce numerical drift on Ampere/Ada
 torch.use_deterministic_algorithms(True, warn_only=True)
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
-# (опц.) для единообразной матричной точности
-# torch.set_float32_matmul_precision("high")
+# torch.set_float32_matmul_precision("high")  # optional: uniform matmul precision
 
 
-# Если вы используете DataLoader с несколькими воркерами:
+# For DataLoader with multiple workers:
 def worker_init_fn(worker_id):
     np.random.seed(SEED + worker_id)
     random.seed(SEED + worker_id)
@@ -73,7 +71,6 @@ def make_dl_test(args, tokenizer, cohort):
         csv_path=args.csv_path,
         tokenizer=tokenizer,
         feature_path=args.feature_path,
-        # subject_ids=[sid for sid in pd.read_csv(args.split_path).query("split=='test'")["subject_id"].tolist() if "FCD" in sid],
         subject_ids=[sid for sid in pd.read_csv(args.split_path).query("split=='test'")["subject_id"].tolist()],
         cohort=cohort,
     )
@@ -109,22 +106,6 @@ def run_meld_check(dl_test, eva, cohort, models=None, device=None):
       for batch in tqdm(dl_test):
         subject_ids = batch["subject_id"]  # list[str]
 
-        # #########################################################
-        # target_ids = {
-        #     "MELD2_H7_3T_FCD_005",
-        #     "MELD_H11_3T_FCD_0011",
-        #     "MELD_H12_3T_FCD_0006",
-        #     "MELD_H14_3T_FCD_0009",
-        #     "MELD_H14_3T_FCD_0017",
-        #     "MELD_H17_15T_FCD_0011",
-        #     "MELD_H17_3T_FCD_0053",
-        #     "MELD_H21_15T_FCD_0052",
-        # }
-
-        # # если пересечение пустое → пропускаем batch
-        # if not (set(subject_ids) & target_ids):
-        #     continue
-        #########################################################
         y = batch["roi"]  # torch.Tensor
         B, H, N = y.shape
 
@@ -186,19 +167,10 @@ def run_meld_check(dl_test, eva, cohort, models=None, device=None):
             probs_flat = probs_flat_np
 
             boundary_zone = dist_maps_cortex_subj < 20
-            # boundary_zone_np = boundary_zone.cpu().numpy() if hasattr(boundary_zone, "cpu") else np.array(boundary_zone)
-            #probs_flat = np.asarray(probs_flat, dtype=np.float32).ravel()
-            
             probs = probs_flat.reshape(2, -1)
-            # if "_C_" not in sid:
-            #     final_nii = convert_preds_to_nifti("meld", [sid], [probs], [gt_cortex], cohort)
-            # final_nii = convert_preds_to_nifti(ckpt_path="meld", subject_ids=[sid], probs_bin=[probs], c=cohort)
 
-            # cluster sizes and distances
             all_ids = np.unique(probs_flat)
             all_ids = all_ids[all_ids > 0]
-            # full_cluster_sizes = {int(cid): int((probs_flat == cid).sum()) for cid in all_ids}
-            # full_cluster_distance = {int(cid): float(dist_maps_cortex_subj[probs_flat == cid].sum()) for cid in all_ids}
 
             tp_ids = np.unique(probs_flat[boundary_zone])
             tp_ids = tp_ids[tp_ids > 0]

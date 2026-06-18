@@ -15,7 +15,7 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 
-from languidemedseg_meld.models.model import LanGuideMedSeg
+from fcd_texguide_model.models.model import LanGuideMedSeg
 from meld_graph.icospheres import IcoSpheres
 from meld_graph.meld_cohort import MeldCohort
 from utils.config import SCRIPTS_DIR, DATA_DIR
@@ -39,7 +39,27 @@ def load_config(config_file):
     return config
 
 class LanGuideMedSegWrapper(pl.LightningModule):
-    def __init__(self, 
+    """PyTorch Lightning wrapper for LanGuideMedSeg.
+
+    Handles training, validation and test loops including:
+    - Multi-level deep supervision loss aggregation.
+    - Cortex-masked segmentation metrics (Dice, IoU, PPV).
+    - Hemisphere classification head monitoring.
+    - Distance-to-lesion regression head (MAE tracking).
+    - Per-subject cluster-level TP/FP counting via MELD evaluator.
+    - NIfTI prediction export on test epoch end.
+
+    Args:
+        args: Namespace with model hyperparameters (bert_type, feature_dim, lr, etc.).
+        eva: MELD evaluator object with threshold_and_cluster().
+        mode: 'inference' to load from ckpt_path without training setup.
+        fold_number: Cross-validation fold index passed to LanGuideMedSeg.
+        model_type: Checkpoint path string used in inference mode.
+        att_mechanism: Enable cross-attention in GuideDecoder.
+        text_emb: Pass text embeddings to decoder stages.
+    """
+
+    def __init__(self,
                  args: Any, 
                  eva: Any, 
                  mode: str = None, 
@@ -122,7 +142,7 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             optimizer,
             max_lr=self.hparams.lr,  # 3e-3
             total_steps=self.trainer.estimated_stepping_batches,
-            pct_start=0.1,  # попробовать 0.2
+            pct_start=0.1,  # try 0.2 if warmup is too short
             anneal_strategy="cos",
         )
 
@@ -207,19 +227,8 @@ class LanGuideMedSegWrapper(pl.LightningModule):
         dist_maps_cortex = dist_maps[:, :, self.cortex_mask]
         dist_maps_cortex = dist_maps_cortex.view(B, -1)
 
-        # NEWWW
-        # # logp: [B, 2, N] → [B*N, 2]
-        # logp = logp.permute(0, 2, 1).reshape(-1, 2)
-
-        # # target: [B, N] → [B*N]
-        # target = target.reshape(-1)
-
-        # # distance map: [B, N] → [B*N]
-        # dist_maps_cortex = dist_maps_cortex.reshape(-1)
-
         estimates = {}
         estimates["log_softmax"] = logp
-        ############################################################
 
         estimates["hemi_log_softmax"] = outputs["hemi_log_softmax"]
         # distance head
@@ -230,7 +239,6 @@ class LanGuideMedSegWrapper(pl.LightningModule):
             estimates["non_lesion_logits"] = non_lesion_logits_cortex.reshape(B, -1)
 
         losses = {}
-        # sys.exit(0)
         losses_main = calculate_loss(
             loss_cfg,
             estimates,
@@ -346,10 +354,6 @@ class LanGuideMedSegWrapper(pl.LightningModule):
         # Calculate metrics on cortex only
         probs = logp[:, 1, :].exp()
         pprobs = probs.view(B, H, -1).contiguous()  # [B, H, V_cortex]
-        #### Classification gating ###
-        # cls_prob = outputs["hemi_log_softmax"].view(B, 2)[:, 1].exp()  # [B]
-        # pprobs = pprobs * cls_prob[:, None, None]  # [B, H, V_cortex] * [B, 1, 1]
-        ##############################
         target = target.view(B, H, -1)
 
         # Move predicted probabilities and dist_maps to CPU once to avoid repeated device transfers
@@ -567,7 +571,7 @@ class LanGuideMedSegWrapper(pl.LightningModule):
         ckpt_cb = self.trainer.checkpoint_callback
         if ckpt_cb is not None:
             monitor = ckpt_cb.monitor
-            mode = ckpt_cb.mode  # "min" или "max"
+            mode = ckpt_cb.mode  # "min" or "max"
             arr_scores = pd.DataFrame(self.history).T[monitor].values
             if mode == "max":
                 best_idx = np.argmax(arr_scores)

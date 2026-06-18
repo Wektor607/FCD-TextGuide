@@ -7,7 +7,7 @@ import h5py
 import nibabel as nb
 import numpy as np
 
-from languidemedseg_meld.utils.config import SUBJECTS_DIR
+from fcd_texguide_model.utils.config import SUBJECTS_DIR
 
 
 def run_command(command: str, verbose: bool):
@@ -27,7 +27,7 @@ def save_gt_as_mgh(h5_path: str, hemi: str, out_dir: str, subjects_fs_dir: str):
     key = ".on_lh.lesion.mgh"
     thick_key = ".combat.on_lh.thickness.sm3.mgh"
 
-    # читаем данные
+    # read data
     with h5py.File(h5_path, "r") as f:
         grp = f[hemi]
         if key in grp:

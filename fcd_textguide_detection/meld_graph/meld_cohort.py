@@ -476,18 +476,18 @@ class MeldSubject:
 
         hdf5_file = self.cohort._site_hdf5(self.site_code, self.group)
         if hdf5_file is None:
-            return None  # файл не найден
+            return None  # file not found
 
         with hdf5_file as f:
             if f is None:
                 return None
             
             if self.site_code not in f:
-                return None  # ключа нет в файле
+                return None  # key not found in file
 
             visit_path = f[self.site_code].visit(self.find_path)
             if visit_path is None:
-                return None  # путь не найден
+                return None  # path not found
 
             surf_dir_lh_path = os.path.join(self.site_code, visit_path, "lh")
             surf_dir_rh_path = os.path.join(self.site_code, visit_path, "rh")

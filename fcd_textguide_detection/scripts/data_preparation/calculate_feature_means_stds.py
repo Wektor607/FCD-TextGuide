@@ -32,8 +32,8 @@ def load_config(config_file):
 class StatsRecorder:
     def __init__(self, ndimensions=None, data=None):
         """
-        Если data != None, исходный код оставляем без изменений.
-        Если data == None, но ndimensions задан, создаём mean и std нулями.
+        If data != None, keep the original code unchanged.
+        If data == None but ndimensions is given, initialise mean and std to zeros.
         """
         if data is not None:
             data = np.atleast_2d(data)
@@ -42,22 +42,22 @@ class StatsRecorder:
             self.nobservations = data.shape[0]
             self.ndimensions = data.shape[1]
         else:
-            # Если ndimensions задано, то инициализируем mean/std нулями нужной длины
+            # If ndimensions is set, initialise mean/std to zeros of the required length
             if ndimensions is None:
-                raise ValueError("Если data=None, нужно передать ndimensions.")
+                raise ValueError("If data=None, ndimensions must be provided.")
             self.ndimensions = ndimensions
             self.nobservations = 0
-            # сразу создаём массивы нулей нужной длины
+            # immediately create zero arrays of the required length
             self.mean = np.zeros(self.ndimensions, dtype=np.float32)
             self.std  = np.zeros(self.ndimensions, dtype=np.float32)
 
     def update(self, data):
         """
-        Когда вызывается update первый раз, data имеет форму (n_obs, ndimensions).
-        Если self.nobservations == 0, вызов __init__(data) перезапишет mean/std.
+        When update is called for the first time, data has shape (n_obs, ndimensions).
+        If self.nobservations == 0, calling __init__(data) will overwrite mean/std.
         """
         if self.nobservations == 0:
-            # Поскольку в __init__ мы принимаем data – он переопределит сам mean и std.
+            # Since __init__ accepts data, it will overwrite mean and std itself.
             self.__init__(data=data)
         else:
             data = np.atleast_2d(data)
@@ -68,9 +68,9 @@ class StatsRecorder:
             m = self.nobservations * 1.0
             n = data.shape[0]
             tmp = self.mean.copy()
-            # обновляем среднее корректно
+            # update mean correctly
             self.mean = m/(m+n)*tmp + n/(m+n)*newmean
-            # обновляем std-квадрат (формула для объединения стандартных отклонений)
+            # update squared std (formula for combining standard deviations)
             var_combined = (
                 m/(m+n)* (self.std**2)
                 + n/(m+n)* (newstd**2)
@@ -101,7 +101,7 @@ if __name__ == "__main__":
             flair_mask[fi] = 1
 
     n_nonflair = np.sum(~flair_mask)
-    # Количество “FLAIR” фич:
+    # Number of “FLAIR” features:
     n_flair    = np.sum(flair_mask)
 
     mean_std       = StatsRecorder(ndimensions=n_nonflair)

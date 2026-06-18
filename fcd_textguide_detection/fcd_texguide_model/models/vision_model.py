@@ -15,22 +15,8 @@ from meld_graph.paths import FEATURE_PATH
 from utils.config import DATA_DIR, REPO_ROOT
 
 
-# TODO: Conduct experiments with different GNN layers (GAT, GCN, etc.)
 class ResidualBlock(nn.Module):
-    # def __init__(self, dim, dropout=0.1, aggr="mean", layerscale=0.1):
-    #     super().__init__()
-    #     self.norm = nn.LayerNorm(dim)              # стабильнее GraphNorm
-    #     self.conv = SAGEConv(dim, dim, aggr=aggr)  # попробуй aggr="max" для очагов
-    #     self.act  = nn.GELU()
-    #     self.drop = nn.Dropout(dropout)
-    #     self.alpha = nn.Parameter(torch.tensor(layerscale))  # скейл резидуала
-
-    # def forward(self, x, edge_index, batch=None):
-    #     h = self.norm(x)                # pre-norm
-    #     h = self.conv(h, edge_index)
-    #     h = self.act(h)
-    #     h = self.drop(h)
-    #     return x + self.alpha * h       # без пост-нормы: сохраняем identity
+    """SAGEConv residual block with GraphNorm for cortical graph processing."""
 
     def __init__(self, dim, dropout=0.1):
         super().__init__()
@@ -47,11 +33,23 @@ class ResidualBlock(nn.Module):
         # residual connection
         h = x + h
         h = self.relu(h)
-        # h = self.dropout(h) # <- test it
         h = self.norm2(h, batch)  # <- necessary second normalization
         return h
 
 class VisionModel(nn.Module):
+    """Hierarchical GNN encoder that loads pre-extracted cortical surface features.
+
+    For each subject, reads multi-scale NPZ feature maps and builds icosphere graphs
+    at each stage. A ResidualBlock GNN is applied at stages with vertex count >=
+    `gnn_min_verts`. Returns one batched graph per stage.
+
+    Args:
+        feature_dim: Channel dimensions at each encoder stage.
+        device: Target device for tensors.
+        gnn_min_verts: Skip GNN processing for stages with fewer vertices than this.
+        fold_number: Index into the fold dimension of the NPZ feature arrays.
+    """
+
     def __init__(
         self,
         feature_dim: List[int],

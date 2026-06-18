@@ -17,10 +17,10 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-import languidemedseg_meld.utils.config as config
-from languidemedseg_meld.engine.wrapper import LanGuideMedSegWrapper
-from languidemedseg_meld.utils.data import SingleEpilepSample
-from languidemedseg_meld.utils.utils import (convert_preds_to_nifti,
+import fcd_texguide_model.utils.config as config
+from fcd_texguide_model.engine.wrapper import LanGuideMedSegWrapper
+from fcd_texguide_model.utils.data import SingleEpilepSample
+from fcd_texguide_model.utils.utils import (convert_preds_to_nifti,
                                              get_device, move_to_device,
                                              summarize_clusters,
                                              worker_init_fn)
@@ -49,7 +49,7 @@ def get_cfg(argv=[]):
         description="Language-guide Medical Image Segmentation"
     )
     parser.add_argument(
-        "--config", default="/app/languidemedseg_meld/config/training.yaml", type=str, help="config file"
+        "--config", default="/app/fcd_texguide_model/config/training.yaml", type=str, help="config file"
     )
 
     cli = parser.parse_args(argv)
@@ -84,10 +84,7 @@ def create_inference_loader(subject_data: dict, description: str, tokenizer) -> 
 
 def load_ensemble_models(ckpt_prefix: str, args, eva, att_mechanism: bool, text_emb: bool, device: torch.device) -> List[torch.nn.Module]:
     save_dir = Path("data") / "saved_models"
-    # i = 4
-    # ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt"]
     ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt" for i in range(0, 5)]
-    # ckpt_paths = [save_dir / f"{ckpt_prefix}_fold{i+1}.ckpt" for i in range(0, 3)]
     
     print(
         f"[INFO] Using ensemble of {len(ckpt_paths)} models:",

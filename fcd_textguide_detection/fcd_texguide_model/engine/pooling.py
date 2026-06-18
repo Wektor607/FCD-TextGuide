@@ -18,7 +18,7 @@ class HexPool(nn.Module):
         """
         x: [B,H,N_hi,C] (features)
         or [B,H,N_hi] (labels/maps)
-        or [N_hi,C] / [N_hi] (без батча/головы)
+        or [N_hi,C] / [N_hi] (no batch/head dims)
         return:
         if input [B,H,N_hi,C] -> [B,H,N_lo,C]
         if input [B,H,N_hi]   -> [B,H,N_lo]
@@ -28,7 +28,7 @@ class HexPool(nn.Module):
         N_lo = self.neigh_indices.size(0)
 
         if center_pool:
-            # center-pool: просто "отрезаем" первые N_lo вершин
+            # center-pool: take the first N_lo vertices (coarse-level centers)
             if x.dim() == 4:
                 return x[:, :, :N_lo, :]
             elif x.dim() == 3:
@@ -71,7 +71,6 @@ class HexUnpool(nn.Module):
 
         # new_x: [B, H, target_size, C]
         new_x = torch.zeros(B, H, self.target_size, C, device=device)
-        # print(new_x.shape)
 
         # 1) copy old features
         new_x[:, :, :N_from, :] = x

@@ -34,6 +34,25 @@ def load_config(config_file: str) -> Any:
     return config
 
 class EpilepDataset(Dataset):
+    """Dataset for cortical FCD detection with optional text embeddings.
+
+    Loads surface feature maps (NPZ) and paired textual descriptions (CSV) for each
+    subject. Supports random text masking during training to improve robustness.
+
+    Args:
+        csv_path: Path to CSV with subject text descriptions.
+        tokenizer: HuggingFace tokenizer for text encoding.
+        feature_path: Directory containing per-subject NPZ feature maps.
+        subject_ids: List of subject IDs to include.
+        cohort: MeldCohort object for cortex mask and cohort metadata.
+        max_length: Maximum tokenizer sequence length.
+        text_emb: Whether to load and return text embeddings.
+        text_prob_json: Optional JSON with per-region text sampling probabilities.
+        atlas_type: Brain atlas used for region-based text generation.
+        patient_text_mask_prob: Probability of masking text for patient subjects during training.
+        training_mode: If True, enables text masking augmentation.
+    """
+
     def __init__(
         self,
         csv_path: str,
@@ -266,6 +285,18 @@ class EpilepDataset(Dataset):
 
     
 class SingleEpilepSample(Dataset):
+    """Single-subject dataset for inference on one patient at a time.
+
+    Used by the inference pipeline and backend to process a single subject without
+    loading the full training CSV.
+
+    Args:
+        data: Dict mapping subject_id to feature data.
+        description: Free-text clinical description of the subject.
+        tokenizer: HuggingFace tokenizer for text encoding.
+        max_length: Maximum tokenizer sequence length.
+    """
+
     def __init__(
         self,
         data: dict,

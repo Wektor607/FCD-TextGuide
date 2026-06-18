@@ -68,7 +68,7 @@ def run_command(command, verbose=True):
 
 def convert_lesion_mgh_to_nii(folder_name, subjects_dir, hemi='lh', verbose=True):
     subjects_dir = Path(subjects_dir)
-    fsaverage_root = Path("/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/data4sharing")
+    fsaverage_root = Path(os.environ.get("SUBJECTS_DIR", "/data/input/data4sharing"))
     fsavg_mri = fsaverage_root / "fsaverage_sym" / "mri"
 
     surf_path = subjects_dir / folder_name / "labels" / f"labels-{hemi}.mgh"
@@ -158,8 +158,8 @@ def process_t1_mask_only(mask_path, output_dir, base_name='subject', t1_path=Non
     return harv_rep, aal_rep
 
 
-def full_pipeline(data4sharing_root, report_log_path):
-    fsaverage_root = "/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/data4sharing"
+def full_pipeline(data4sharing_root):
+    fsaverage_root = os.environ.get("SUBJECTS_DIR", "/data/input/data4sharing")
     t1_path = os.path.join(fsaverage_root, "fsaverage_sym/mri/T1.mgz")
     csv_path = os.path.join(data4sharing_root, "all_augmented_reports.csv")
 
@@ -237,7 +237,3 @@ def full_pipeline(data4sharing_root, report_log_path):
             csvfile.flush()
 
 
-full_pipeline(
-    data4sharing_root="/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/preprocessed/meld_files",
-    report_log_path="/raid/Users/mikhelson/FCD-Detection/meld_graph/data/input/preprocessed/report_log.txt"
-)
